@@ -5,3 +5,6 @@
 	path = lib/solmate
 	url = https://github.com/transmissions11/solmate
 	branch = v7
+[submodule "lib/automata-dcap-attestation"]
+	path = lib/automata-dcap-attestation
+	url = https://github.com/automata-network/automata-dcap-attestation

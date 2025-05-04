@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "solmate/src/utils/TransientReentrancyGuard.sol";
 import "solmate/src/auth/Owned.sol";
+import "automata-dcap-attestation/contracts/interfaces/IPCCSRouter.sol";
 
 struct DCAPEvent {
 	uint32 Index;
@@ -65,6 +66,10 @@ contract TEERegistry is Owned, TransientReentrancyGuard {
      */
     constructor(address initialOwner) Owned(initialOwner) {
         // TODO setup roles with solmate auth
+
+        // dummy contract to router on ETH sepolia to show how to import
+        // from the automata-dcap-attestation depedency
+        IPCCSRouter pccsRouter = IPCCSRouter(0xe20C4d54afBbea5123728d5b7dAcD9CB3c65C39a);
     }
 
      /**
