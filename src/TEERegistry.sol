@@ -8,8 +8,8 @@ import "automata-dcap-attestation/contracts/interfaces/IPCCSRouter.sol";
 struct DCAPEvent {
 	uint32 Index;
 	uint32 EventType;
+    bytes32 Digest;
 	bytes EventPayload;
-	bytes32 Digest;
 }
 
 struct DCAPReport {
@@ -25,16 +25,10 @@ struct MAAReport {
 	bytes32[24] PCRs;
 }
 
-struct AppPKI {
-	bytes ca;
-	bytes pubkey;
-	bytes attestation;
-}
-
 /**
  * @title TEERegistry
  * @dev A contract for managing trusted execution environment (TEE) identities and configurations
- * using Intel DCAP attestation.
+ * using Intel DCAP attestation
  */
 contract TEERegistry is Owned, TransientReentrancyGuard {
     // Maximum size for byte arrays to prevent DoS attacks
@@ -42,7 +36,6 @@ contract TEERegistry is Owned, TransientReentrancyGuard {
 
     // State variables
     string[] public instanceDomainNames;
-	AppPKI public app_pki;
 
 	// Notes config and secrets locations
 	string[] public storageBackends;
@@ -56,7 +49,6 @@ contract TEERegistry is Owned, TransientReentrancyGuard {
 	event StorageBackendSet(string location, address setter);
 	event StorageBackendRemoved(string location, address remover);
     event ArtifactAdded(bytes32 configHash, address adder);
-    event PKIUpdated(address updater, AppPKI pki);
     event IdentityConfigSet(bytes32 identity, bytes32 configHash, address setter);
 
     error ByteSizeExceeded(uint256 size);
@@ -79,24 +71,4 @@ contract TEERegistry is Owned, TransientReentrancyGuard {
         require(data.length <= MAX_BYTES_SIZE, ByteSizeExceeded(data.length));
         _;
     }
-
-    /**
-     * @dev Set PKI and its attestation
-     * @param pki The PKI (certificate authority, encryption pubkey, kms attestation)
-     */
-    function setPKI(AppPKI memory pki)
-        public 
-        onlyOwner 
-        limitBytesSize(pki.ca)
-        limitBytesSize(pki.pubkey)
-        limitBytesSize(pki.attestation)
-    {
-		app_pki = pki;
-        emit PKIUpdated(msg.sender, pki);
-    }
-
-    function getPKI() external view returns (AppPKI memory) {
-		return app_pki;
-	}
-
 }
