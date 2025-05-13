@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "solmate/src/utils/TransientReentrancyGuard.sol";
 import "solmate/src/auth/Owned.sol";
 import "automata-dcap-attestation/contracts/interfaces/IPCCSRouter.sol";
 
@@ -30,7 +29,7 @@ struct MAAReport {
  * @dev A contract for managing trusted execution environment (TEE) identities and configurations
  * using Intel DCAP attestation
  */
-contract TEERegistry is Owned, TransientReentrancyGuard {
+contract TEERegistry is Owned {
     // Maximum size for byte arrays to prevent DoS attacks
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024; // 20KB limit
 
