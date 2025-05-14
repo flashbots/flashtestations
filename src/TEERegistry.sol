@@ -1,28 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.28;
 
 import "solmate/src/auth/Owned.sol";
-import "automata-dcap-attestation/contracts/interfaces/IPCCSRouter.sol";
-
-struct DCAPEvent {
-	uint32 Index;
-	uint32 EventType;
-    bytes32 Digest;
-	bytes EventPayload;
-}
-
-struct DCAPReport {
-    // All fields are expected to be 48 bytes
-	bytes mrTd;          // Measurement register for TD
-	bytes[4] RTMRs;      // Runtime measurement registers
-	bytes mrOwner;       // Measurement register for owner
-	bytes mrConfigId;    // Measurement register for config ID
-	bytes mrConfigOwner; // Measurement register for config owner
-}
-
-struct MAAReport {
-	bytes32[24] PCRs;
-}
+import {TDXLibrary} from "./utils/TDXLibrary.sol";
 
 /**
  * @title TEERegistry
@@ -33,11 +13,21 @@ contract TEERegistry is Owned {
     // Maximum size for byte arrays to prevent DoS attacks
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024; // 20KB limit
 
+    // TEE identity and status tracking
+    struct TEEDevice {
+        bytes32 publicKey; // Public key of the TEE device
+        uint64 lastActiveTime; // Timestamp of last activity
+        bool isActive; // Whether the device is currently active
+    }
+
+    // Mapping from TEE identity to device information
+    mapping(bytes32 => TEEDevice) public teeDevices;
+
     // State variables
     string[] public instanceDomainNames;
 
-	// Notes config and secrets locations
-	string[] public storageBackends;
+    // Notes config and secrets locations
+    string[] public storageBackends;
     // Maps config hash to config data and secrets for onchain DA
     mapping(bytes32 => bytes) public artifacts;
     // Maps identity to config hash
@@ -45,29 +35,45 @@ contract TEERegistry is Owned {
 
     // Events
     event InstanceDomainRegistered(string domain, address registrar);
-	event StorageBackendSet(string location, address setter);
-	event StorageBackendRemoved(string location, address remover);
+    event StorageBackendSet(string location, address setter);
+    event StorageBackendRemoved(string location, address remover);
     event ArtifactAdded(bytes32 configHash, address adder);
     event IdentityConfigSet(bytes32 identity, bytes32 configHash, address setter);
 
     error ByteSizeExceeded(uint256 size);
-    
+
     /**
-     * @dev Constructor to set up initial owner and roles
+     * @notice Constructor to set the the governance address, which
+     * is the only address that can register and de-register TEE devices
+     * and wipe the registry in case of a compromise
+     * @param governance The address of the governance contract
      */
-    constructor(address initialOwner) Owned(initialOwner) {
-        // TODO setup roles with solmate auth
+    constructor(address governance) Owned(governance) {}
 
-        // dummy contract to router on ETH sepolia to show how to import
-        // from the automata-dcap-attestation depedency
-        IPCCSRouter pccsRouter = IPCCSRouter(0xe20C4d54afBbea5123728d5b7dAcD9CB3c65C39a);
-    }
-
-     /**
+    /**
      * @dev Modifier to check if input bytes size is within limits
+     * to protect against DoS attacks
      */
     modifier limitBytesSize(bytes memory data) {
         require(data.length <= MAX_BYTES_SIZE, ByteSizeExceeded(data.length));
         _;
+    }
+
+    function registerTEE(bytes memory quote) external onlyOwner {
+        // TODO: Implement
+    }
+
+    function deregisterTEE(bytes memory quote) external onlyOwner {
+        // TODO: Implement
+    }
+
+    function verifyFlashestationTransaction(bytes memory attestationTransaction) external {
+        // TODO: Implement
+        // 1. check signature against live builder keys
+        // 2. update liveness
+    }
+
+    function _updateLiveness() internal {
+        // TODO: Implement
     }
 }
