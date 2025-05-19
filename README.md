@@ -1,3 +1,54 @@
+# Flashtestations
+
+A protocol for allowing any [TDX device](https://collective.flashbots.net/t/building-secure-ethereum-blocks-on-minimal-intel-tdx-confidential-vms/3795) to prove its output onchain
+
+Its first use case will be for proving that blocks on the Unichain L2 were built [using fair and transparent ordering rules](https://blog.uniswap.org/rollup-boost-is-live-on-unichain)
+
+
+## System Components
+
+1. TEE Devices
+1. TEE Public Keys (these are used to identify and verify TEEs and their outputs)
+1. TEE Attestations (also called Quotes)
+1. Block Signature Transaction
+1. Governance Values
+
+## System Flows
+
+1. Initialize Governance values
+    
+    a. Governance (e.g. UNI DAO) is the only address than can register and de-register TEE devices
+    
+    b. Governance is the only address that can wipe the Registry (this exists only as a nuclear option to protect against system compromise)
+1. Registering a TEE Device (also referred to as a block builder)
+    
+    a. Should only be callable by governance
+    
+    b. Verify TEE Quote
+    
+    c. extract and store TEE public key
+    
+    d. set liveness (we want a way to indicate that a TEE device has not been active for a long period of time, and for that we use liveness)
+    
+    e. Mark TEE device as "active"
+1. Verify Flashtestation transaction
+    
+    a. Check signature of transactions against registry of live builder keys
+    
+    b. update TEE device liveness
+1. Deregistering a TEE Device
+    
+    a. Should only be callable by governance
+    
+    b. Mark TEE device as "retired"
+
+## TODOs
+
+- [] Implement Governance-related values
+- [] Implement TEE Device Registry
+- [] Implement Flashtestation transaction verification
+- [] Implement TEE Device Deregistration
+
 ## Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
