@@ -11,9 +11,7 @@ contract TEERegistryTest is Test {
         registry = new TEERegistry(address(this));
     }
 
-    function test_SetPKI() public {
-    }
+    function test_SetPKI() public {}
 
-    function testFuzz_SetPKI(bytes memory _ca, bytes memory _pubkey, bytes memory _attestation) public {
-    }
+    function testFuzz_SetPKI(bytes memory _ca, bytes memory _pubkey, bytes memory _attestation) public {}
 }

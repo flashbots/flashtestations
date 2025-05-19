@@ -5,23 +5,23 @@ import "solmate/src/auth/Owned.sol";
 import "automata-dcap-attestation/contracts/interfaces/IPCCSRouter.sol";
 
 struct DCAPEvent {
-	uint32 Index;
-	uint32 EventType;
+    uint32 Index;
+    uint32 EventType;
     bytes32 Digest;
-	bytes EventPayload;
+    bytes EventPayload;
 }
 
 struct DCAPReport {
     // All fields are expected to be 48 bytes
-	bytes mrTd;          // Measurement register for TD
-	bytes[4] RTMRs;      // Runtime measurement registers
-	bytes mrOwner;       // Measurement register for owner
-	bytes mrConfigId;    // Measurement register for config ID
-	bytes mrConfigOwner; // Measurement register for config owner
+    bytes mrTd; // Measurement register for TD
+    bytes[4] RTMRs; // Runtime measurement registers
+    bytes mrOwner; // Measurement register for owner
+    bytes mrConfigId; // Measurement register for config ID
+    bytes mrConfigOwner; // Measurement register for config owner
 }
 
 struct MAAReport {
-	bytes32[24] PCRs;
+    bytes32[24] PCRs;
 }
 
 /**
@@ -36,8 +36,8 @@ contract TEERegistry is Owned {
     // State variables
     string[] public instanceDomainNames;
 
-	// Notes config and secrets locations
-	string[] public storageBackends;
+    // Notes config and secrets locations
+    string[] public storageBackends;
     // Maps config hash to config data and secrets for onchain DA
     mapping(bytes32 => bytes) public artifacts;
     // Maps identity to config hash
@@ -45,13 +45,13 @@ contract TEERegistry is Owned {
 
     // Events
     event InstanceDomainRegistered(string domain, address registrar);
-	event StorageBackendSet(string location, address setter);
-	event StorageBackendRemoved(string location, address remover);
+    event StorageBackendSet(string location, address setter);
+    event StorageBackendRemoved(string location, address remover);
     event ArtifactAdded(bytes32 configHash, address adder);
     event IdentityConfigSet(bytes32 identity, bytes32 configHash, address setter);
 
     error ByteSizeExceeded(uint256 size);
-    
+
     /**
      * @dev Constructor to set up initial owner and roles
      */
@@ -63,7 +63,7 @@ contract TEERegistry is Owned {
         IPCCSRouter pccsRouter = IPCCSRouter(0xe20C4d54afBbea5123728d5b7dAcD9CB3c65C39a);
     }
 
-     /**
+    /**
      * @dev Modifier to check if input bytes size is within limits
      */
     modifier limitBytesSize(bytes memory data) {
