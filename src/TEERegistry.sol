@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import "solmate/src/auth/Owned.sol";
 import {TDXLibrary} from "./utils/TDXLibrary.sol";
+import {AutomataDcapAttestationFee} from "../lib/automata-dcap-attestation/evm/contracts/AutomataDcapAttestationFee.sol";
 
 /**
  * @title TEERegistry
@@ -19,6 +20,8 @@ contract TEERegistry is Owned {
         uint64 lastActiveTime; // Timestamp of last activity
         bool isActive; // Whether the device is currently active
     }
+
+    bool public isVerified;
 
     // Mapping from TEE identity to device information
     mapping(bytes32 => TEEDevice) public teeDevices;
@@ -75,5 +78,24 @@ contract TEERegistry is Owned {
 
     function _updateLiveness() internal {
         // TODO: Implement
+    }
+
+    /**
+     * @notice Verifies a quote using AutomataDcapAttestationFee and sets isVerified if successful
+     * @param attestationFeeContract The address of the AutomataDcapAttestationFee contract
+     * @param quote The DCAP quote to verify
+     */
+    function verifyQuoteWithAttestationFee(address attestationFeeContract, bytes calldata quote) 
+        external
+        onlyOwner
+        limitBytesSize(quote)
+        returns (bool, bytes memory)
+    {
+        (bool success, bytes memory output) = AutomataDcapAttestationFee(attestationFeeContract).verifyAndAttestOnChain(quote);
+        if (success) {
+            isVerified = true;
+        }
+
+        return (success, output);
     }
 }

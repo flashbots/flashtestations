@@ -1,0 +1,593 @@
+Okay, here is the complete set of Solidity files for the Flashtestations protocol, incorporating all the discussions and focusing on TDX.
+
+This includes:
+
+Interfaces (IAllowlistRegistry.sol, IPolicyRegistry.sol, IAutomataDCAPAttestation.sol)
+
+Library (QuoteParser.sol)
+
+Core Contracts (AllowlistRegistry.sol, PolicyRegistry.sol, Flashtestations.sol)
+
+A basic foundry.toml and remappings.txt for project setup.
+
+Directory Structure (Reminder):
+
+flashtestations/
+├── contracts/
+│   ├── interfaces/
+│   │   ├── IAllowlistRegistry.sol
+│   │   ├── IPolicyRegistry.sol
+│   │   └── IAutomataDCAPAttestation.sol
+│   ├── lib/
+│   │   └── QuoteParser.sol
+│   ├── PolicyRegistry.sol
+│   ├── AllowlistRegistry.sol
+│   └── Flashtestations.sol
+├── scripts/
+│   └── deploy.js                        // Placeholder
+└── test/
+    └── Flashtestations.test.js          // Placeholder
+foundry.toml
+remappings.txt
+
+contracts/interfaces/IAllowlistRegistry.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IAllowlistRegistry {
+    struct AttestationInfo {
+        bytes quote;
+        bool isValid;
+        uint256 registrationTimestamp;
+        uint256 lastVerifiedTimestamp;
+    }
+
+    event AddressAdded(bytes32 indexed workloadId, address indexed serviceAddress, bytes quote);
+    event AddressRemoved(bytes32 indexed workloadId, address indexed serviceAddress);
+    event AddressMarkedOutdated(bytes32 indexed workloadId, address indexed serviceAddress);
+    event QuoteRetrieved(bytes32 indexed workloadId, address indexed serviceAddress, bytes quote);
+    event AllowlistUpdated(bytes32 indexed workloadId, address indexed ethAddress, bool isAdded, bool isValid);
+
+    function addAddress(bytes32 workloadId, address serviceAddress, bytes calldata quote) external;
+    function removeAddress(bytes32 workloadId, address serviceAddress) external;
+    function markOutdated(bytes32 workloadId, address serviceAddress) external;
+    function getAttestationInfo(bytes32 workloadId, address serviceAddress) external view returns (AttestationInfo memory);
+    function isAllowedWorkload(bytes32 workloadId, address serviceAddress) external view returns (bool);
+    function updateVerificationTimestamp(bytes32 workloadId, address serviceAddress) external;
+    function getQuoteForAddress(bytes32 workloadId, address serviceAddress) external view returns (bytes memory);
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+contracts/interfaces/IPolicyRegistry.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IPolicyRegistry {
+    event PolicyUpdated(bytes32 indexed policyId, bytes32 indexed workloadId, bool added);
+
+    function addWorkloadToPolicy(bytes32 policyId, bytes32 workloadId) external;
+    function removeWorkloadFromPolicy(bytes32 policyId, bytes32 workloadId) external;
+    function isAllowedPolicy(bytes32 policyId, address serviceAddress) external view returns (bool);
+    function getWorkloadsForPolicy(bytes32 policyId) external view returns (bytes32[] memory);
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+contracts/interfaces/IAutomataDCAPAttestation.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IAutomataDCAPAttestation {
+    /**
+     * @dev Verifies a raw DCAP quote on-chain.
+     * @param rawQuote The raw DCAP quote bytes.
+     * @return success True if the quote is valid, false otherwise.
+     * @return output If success, contains serialized attestation data (including measurements).
+     *                If failure, contains an error message string.
+     */
+    function verifyAndAttestOnChain(bytes calldata rawQuote)
+        external
+        view
+        returns (bool success, bytes memory output);
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+contracts/lib/QuoteParser.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+library QuoteParser {
+    // Intel TDX TDREPORT_STRUCT (TD_REPORT_V1_5_STRUCT from TDX Module v1.5 ABI spec)
+    // All fields are Little Endian. Sizes are in bytes.
+    // REPORTMAC_STRUCT (384 bytes)
+    //   TEE_TCB_SVN (16) - Offset 0
+    //   MR_SEAM (48) - Offset 16
+    //   MRSIGNER_SEAM (48) - Offset 64
+    //   SEAM_ATTRIBUTES (8) - Offset 112
+    //   TD_ATTRIBUTES (8) - Offset 120
+    //   XFAM (8) - Offset 128
+    //   MR_TD (48) - Offset 136   <-- This is Flashtestations MRTD
+    //   MR_CONFIG_ID (48) - Offset 184
+    //   MR_OWNER (48) - Offset 232 <-- This is Flashtestations MROWNER
+    //   MR_OWNER_CONFIG (48) - Offset 280
+    //   RTMR_0 (48) - Offset 328
+    //   RTMR_1 (48) - Offset 376
+    //   RTMR_2 (48) - Offset 424
+    //   RTMR_3 (48) - Offset 472
+    // REPORT_DATA (64) - Offset 520
+    // MAC (32) - Offset 584 (Not used by us, but part of the structure)
+    // Total size of TDREPORT_STRUCT up to REPORT_DATA end = 520 + 64 = 584 bytes
+
+    // Offsets within the raw TDREPORT_STRUCT (quoteBody from AttestationOutput)
+    uint256 internal constant TD_REPORT_MRTD_OFFSET = 136;         // MR_TD
+    uint256 internal constant TD_REPORT_MRCONFIGID_OFFSET = 184;   // MR_CONFIG_ID
+    uint256 internal constant TD_REPORT_MROWNER_OFFSET = 232;      // MR_OWNER
+    uint256 internal constant TD_REPORT_MROWNERCONFIG_OFFSET = 280; // MR_OWNER_CONFIG
+    uint256 internal constant TD_REPORT_RTMR0_OFFSET = 328;
+    uint256 internal constant TD_REPORT_RTMR1_OFFSET = 376;
+    uint256 internal constant TD_REPORT_RTMR2_OFFSET = 424;
+    uint256 internal constant TD_REPORT_RTMR3_OFFSET = 472;
+    uint256 internal constant TD_REPORT_REPORTDATA_OFFSET = 520;
+
+    uint256 internal constant MEASUREMENT_FIELD_SIZE = 48; // Common size for MR* fields and RTMRs
+    uint256 internal constant REPORT_DATA_FIELD_SIZE = 64;
+    uint256 internal constant MIN_TD_REPORT_BODY_LENGTH = TD_REPORT_REPORTDATA_OFFSET + REPORT_DATA_FIELD_SIZE; // 584 bytes
+
+    // Extracts the Ethereum address from the REPORTDATA field of a TDReport
+    // Assumes the first 20 bytes of REPORTDATA contain the address.
+    function extractAddressFromReportDataBytes(bytes calldata reportDataBytes) internal pure returns (address) {
+        require(reportDataBytes.length == REPORT_DATA_FIELD_SIZE, "QuoteParser: ReportData must be 64 bytes");
+        address addr;
+        // Extract the first 20 bytes for the address
+        assembly {
+            addr := mload(add(reportDataBytes, 0x14)) // Load 32 bytes, address is in lower 20
+            addr := shr(96, addr) // Right shift to get the address (most significant 12 bytes are zeroed out)
+        }
+        return addr;
+    }
+
+    // Extracts REPORT_DATA from the raw TDREPORT_STRUCT (quoteBody)
+    function extractReportDataFromTDReport(bytes calldata tdReportBytes) internal pure returns (bytes memory) {
+        require(tdReportBytes.length >= MIN_TD_REPORT_BODY_LENGTH, "QuoteParser: TDReport too short for ReportData");
+        bytes memory reportData = new bytes(REPORT_DATA_FIELD_SIZE);
+        for (uint i = 0; i < REPORT_DATA_FIELD_SIZE; i++) {
+            reportData[i] = tdReportBytes[TD_REPORT_REPORTDATA_OFFSET + i];
+        }
+        return reportData;
+    }
+
+    // Extracts measurements for workloadId from the raw TDREPORT_STRUCT (quoteBody)
+    function extractMeasurementsForWorkloadId(bytes calldata tdReportBytes)
+        internal
+        pure
+        returns (
+            bytes memory mrtd,         // from MR_TD
+            bytes memory rtmr0,
+            bytes memory rtmr1,
+            bytes memory rtmr2,
+            bytes memory rtmr3,
+            bytes memory mrowner,      // from MR_OWNER
+            bytes memory mrownerconfig,// from MR_OWNER_CONFIG
+            bytes memory mrconfigid   // from MR_CONFIG_ID
+        )
+    {
+        require(tdReportBytes.length >= MIN_TD_REPORT_BODY_LENGTH, "QuoteParser: TDReport too short for all measurements");
+
+        mrtd = new bytes(MEASUREMENT_FIELD_SIZE);
+        rtmr0 = new bytes(MEASUREMENT_FIELD_SIZE);
+        rtmr1 = new bytes(MEASUREMENT_FIELD_SIZE);
+        rtmr2 = new bytes(MEASUREMENT_FIELD_SIZE);
+        rtmr3 = new bytes(MEASUREMENT_FIELD_SIZE);
+        mrowner = new bytes(MEASUREMENT_FIELD_SIZE);
+        mrownerconfig = new bytes(MEASUREMENT_FIELD_SIZE);
+        mrconfigid = new bytes(MEASUREMENT_FIELD_SIZE);
+
+        for (uint i = 0; i < MEASUREMENT_FIELD_SIZE; i++) {
+            mrtd[i] = tdReportBytes[TD_REPORT_MRTD_OFFSET + i];
+            rtmr0[i] = tdReportBytes[TD_REPORT_RTMR0_OFFSET + i];
+            rtmr1[i] = tdReportBytes[TD_REPORT_RTMR1_OFFSET + i];
+            rtmr2[i] = tdReportBytes[TD_REPORT_RTMR2_OFFSET + i];
+            rtmr3[i] = tdReportBytes[TD_REPORT_RTMR3_OFFSET + i];
+            mrowner[i] = tdReportBytes[TD_REPORT_MROWNER_OFFSET + i];
+            mrownerconfig[i] = tdReportBytes[TD_REPORT_MROWNERCONFIG_OFFSET + i];
+            mrconfigid[i] = tdReportBytes[TD_REPORT_MRCONFIGID_OFFSET + i];
+        }
+    }
+
+    function calculateWorkloadId(
+        bytes memory mrtd,
+        bytes memory rtmr0,
+        bytes memory rtmr1,
+        bytes memory rtmr2,
+        bytes memory rtmr3,
+        bytes memory mrowner,
+        bytes memory mrownerconfig,
+        bytes memory mrconfigid
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(mrtd, rtmr0, rtmr1, rtmr2, rtmr3, mrowner, mrownerconfig, mrconfigid));
+    }
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+5. contracts/AllowlistRegistry.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./interfaces/IAllowlistRegistry.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract AllowlistRegistry is IAllowlistRegistry, Ownable {
+    // workloadId => serviceAddress => AttestationInfo
+    mapping(bytes32 => mapping(address => AttestationInfo)) public attestations;
+
+    // Address authorized to add/update attestations (typically the Flashtestations contract)
+    address public attestationManager;
+
+    modifier onlyManager() {
+        require(msg.sender == attestationManager, "AllowlistRegistry: Caller is not the manager");
+        _;
+    }
+
+    constructor(address initialOwner, address _attestationManager) Ownable(initialOwner) {
+        require(_attestationManager != address(0), "Manager cannot be zero address");
+        attestationManager = _attestationManager;
+    }
+
+    function setAttestationManager(address _newManager) external onlyOwner {
+        require(_newManager != address(0), "Manager cannot be zero address");
+        attestationManager = _newManager;
+    }
+
+    function addAddress(bytes32 workloadId, address serviceAddress, bytes calldata quote) external override onlyManager {
+        attestations[workloadId][serviceAddress] = AttestationInfo({
+            quote: quote,
+            isValid: true,
+            registrationTimestamp: block.timestamp,
+            lastVerifiedTimestamp: block.timestamp
+        });
+        emit AddressAdded(workloadId, serviceAddress, quote);
+        emit QuoteStored(serviceAddress, quote); // As per spec diagram logic
+        emit AllowlistUpdated(workloadId, serviceAddress, true, true); // Transparency log
+    }
+
+    function removeAddress(bytes32 workloadId, address serviceAddress) external override onlyManager {
+        delete attestations[workloadId][serviceAddress];
+        emit AddressRemoved(workloadId, serviceAddress);
+        emit AllowlistUpdated(workloadId, serviceAddress, false, false); // Transparency log
+    }
+
+    function markOutdated(bytes32 workloadId, address serviceAddress) external override onlyManager {
+        AttestationInfo storage entry = attestations[workloadId][serviceAddress];
+        require(entry.quote.length > 0, "AllowlistRegistry: Address not registered for this workload");
+        entry.isValid = false;
+        emit AddressMarkedOutdated(workloadId, serviceAddress);
+        emit AllowlistUpdated(workloadId, serviceAddress, true, false); // Transparency log (still added, but not valid)
+    }
+    
+    function updateVerificationTimestamp(bytes32 workloadId, address serviceAddress) external override onlyManager {
+        AttestationInfo storage entry = attestations[workloadId][serviceAddress];
+        require(entry.quote.length > 0, "AllowlistRegistry: Address not registered for this workload");
+        entry.lastVerifiedTimestamp = block.timestamp;
+        // No specific AllowlistUpdated event here as validity status might not change
+    }
+
+    function getAttestationInfo(bytes32 workloadId, address serviceAddress) external view override returns (AttestationInfo memory) {
+        return attestations[workloadId][serviceAddress];
+    }
+
+    function isAllowedWorkload(bytes32 workloadId, address serviceAddress) external view override returns (bool) {
+        return attestations[workloadId][serviceAddress].isValid;
+    }
+
+    function getQuoteForAddress(bytes32 workloadId, address serviceAddress) external view override returns (bytes memory) {
+        AttestationInfo storage info = attestations[workloadId][serviceAddress];
+        require(info.quote.length > 0, "AllowlistRegistry: No quote for this address and workload");
+        // emit QuoteRetrieved(workloadId, serviceAddress, info.quote); // Emitting in view/pure is not standard practice and has limited use.
+        return info.quote;
+    }
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+6. contracts/PolicyRegistry.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./interfaces/IPolicyRegistry.sol";
+import "./interfaces/IAllowlistRegistry.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+/**
+ * @title PolicyRegistry (Reference Implementation)
+ * @notice This contract provides a reference implementation for managing policies
+ *         that map policy IDs to a set of approved workload IDs.
+ *         It allows contracts to authorize interactions based on broader policies
+ *         rather than individual workload IDs.
+ *         This implementation uses EnumerableSet for managing workload IDs per policy,
+ *         which can be gas-intensive for very large sets. Alternative storage
+ *         mechanisms or off-chain management might be considered for production
+ *         systems with extremely large policies.
+ *         The IPolicyRegistry interface is part of the Flashtestations specification,
+ *         while this contract is one possible implementation.
+ */
+contract PolicyRegistry is IPolicyRegistry, Ownable {
+    using EnumerableSet for EnumerableSet.Bytes32Set;
+
+    IAllowlistRegistry public allowlistRegistry;
+
+    // policyId => set of workloadIds
+    mapping(bytes32 => EnumerableSet.Bytes32Set) internal policyWorkloads;
+
+    constructor(address initialOwner, address _allowlistRegistryAddress) Ownable(initialOwner) {
+        require(_allowlistRegistryAddress != address(0), "PolicyRegistry: Invalid AllowlistRegistry address");
+        allowlistRegistry = IAllowlistRegistry(_allowlistRegistryAddress);
+    }
+
+    function addWorkloadToPolicy(bytes32 policyId, bytes32 workloadId) external override onlyOwner {
+        policyWorkloads[policyId].add(workloadId);
+        emit PolicyUpdated(policyId, workloadId, true);
+    }
+
+    function removeWorkloadFromPolicy(bytes32 policyId, bytes32 workloadId) external override onlyOwner {
+        policyWorkloads[policyId].remove(workloadId);
+        emit PolicyUpdated(policyId, workloadId, false);
+    }
+
+    function isAllowedPolicy(bytes32 policyId, address serviceAddress) external view override returns (bool) {
+        EnumerableSet.Bytes32Set storage workloads = policyWorkloads[policyId];
+        uint256 length = workloads.length();
+        for (uint256 i = 0; i < length; i++) {
+            if (allowlistRegistry.isAllowedWorkload(workloads.at(i), serviceAddress)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function getWorkloadsForPolicy(bytes32 policyId) external view override returns (bytes32[] memory) {
+        return policyWorkloads[policyId].values();
+    }
+
+    function setAllowlistRegistry(address _newAllowlistRegistryAddress) external onlyOwner {
+        require(_newAllowlistRegistryAddress != address(0), "PolicyRegistry: Invalid AllowlistRegistry address");
+        allowlistRegistry = IAllowlistRegistry(_newAllowlistRegistryAddress);
+    }
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+7. contracts/Flashtestations.sol
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./interfaces/IAllowlistRegistry.sol";
+import "./interfaces/IAutomataDCAPAttestation.sol";
+import "./lib/QuoteParser.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+// Define TCBStatus enum locally as it's used in AttestationOutput
+enum TCBStatus {
+    OK,
+    TCB_SW_HARDENING_NEEDED,
+    TCB_CONFIGURATION_AND_SW_HARDENING_NEEDED,
+    TCB_CONFIGURATION_NEEDED,
+    TCB_OUT_OF_DATE,
+    TCB_OUT_OF_DATE_CONFIGURATION_NEEDED,
+    TCB_REVOKED,
+    TCB_UNRECOGNIZED
+}
+
+// Define AttestationOutput struct locally to match the expected ABI decoding
+// This struct is based on the `AutomataDcapAttestationFee.sol` example output structure.
+struct AttestationOutput {
+    uint16 quoteVersion;
+    bytes4 tee; // 0x00000081 for TDX (Little Endian from spec)
+    TCBStatus tcbStatus;
+    bytes6 fmspcBytes;
+    bytes quoteBody; // For TDX, this is the raw TDREPORT_STRUCT (584 bytes)
+    string[] advisoryIDs;
+}
+
+
+contract Flashtestations is Ownable {
+    IAutomataDCAPAttestation public dcapAttestationContract;
+    IAllowlistRegistry public allowlistRegistry;
+
+    // Event definitions for the transparency log
+    event TEEServiceRegistered(
+        bytes32 indexed workloadId,
+        address indexed serviceAddress,
+        bytes rawQuote 
+    );
+
+    event AttestationVerificationAttempt(
+        bytes32 indexed workloadId,
+        address indexed serviceAddress,
+        bool success,
+        bytes outputOrError 
+    );
+
+    event EndorsementUpdated(
+        bytes rawEndorsementData, 
+        bool isValid 
+    );
+
+    // TDX TEE Type constant (Little Endian from Intel specs)
+    // TEE_TYPE_TDX 0x81
+    bytes4 public constant TEE_TYPE_TDX = 0x81000000;
+
+
+    constructor(address initialOwner, address _dcapContractAddress, address _allowlistRegistryAddress) Ownable(initialOwner) {
+        require(_dcapContractAddress != address(0), "Flashtestations: Invalid DCAP contract address");
+        require(_allowlistRegistryAddress != address(0), "Flashtestations: Invalid AllowlistRegistry address");
+        
+        dcapAttestationContract = IAutomataDCAPAttestation(_dcapContractAddress);
+        allowlistRegistry = IAllowlistRegistry(_allowlistRegistryAddress);
+    }
+
+    function setDcapAttestationContract(address _newDcapContractAddress) external onlyOwner {
+        require(_newDcapContractAddress != address(0), "Flashtestations: Invalid DCAP contract address");
+        dcapAttestationContract = IAutomataDCAPAttestation(_newDcapContractAddress);
+    }
+
+    function setAllowlistRegistry(address _newAllowlistRegistryAddress) external onlyOwner {
+        require(_newAllowlistRegistryAddress != address(0), "Flashtestations: Invalid AllowlistRegistry address");
+        allowlistRegistry = IAllowlistRegistry(_newAllowlistRegistryAddress);
+    }
+
+    function registerTEEService(bytes calldata rawQuote) external {
+        (bool isValid, bytes memory dcapOutputBytes) = dcapAttestationContract.verifyAndAttestOnChain(rawQuote);
+        
+        if (!isValid) {
+            // For transparency, emit an event even on failure if possible, though revert might prevent it.
+            // Here, we assume dcapOutputBytes contains the error message.
+            emit AttestationVerificationAttempt(bytes32(0), address(0), false, dcapOutputBytes); 
+            revert("Flashtestations: Invalid DCAP quote");
+        }
+
+        // Decode the AttestationOutput struct from dcapOutputBytes
+        AttestationOutput memory attestationOut = abi.decode(dcapOutputBytes, (AttestationOutput));
+        
+        require(attestationOut.quoteVersion == 4, "Flashtestations: Only TDX (Quote v4) is supported");
+        require(attestationOut.tee == TEE_TYPE_TDX, "Flashtestations: Only TDX TEE type is supported");
+        
+        // It's good practice to check TCB status upon registration, not just during re-verification.
+        // Depending on policy, you might only allow registration if TCBStatus is OK.
+        require(attestationOut.tcbStatus == TCBStatus.OK, "Flashtestations: TCB status not OK for registration");
+
+        // quoteBody from AttestationOutput is the raw TDREPORT_STRUCT
+        bytes memory tdReportBytes = attestationOut.quoteBody;
+        
+        // Extract REPORTDATA from tdReportBytes
+        bytes memory reportDataBytes = QuoteParser.extractReportDataFromTDReport(tdReportBytes);
+        
+        // Extract Ethereum address from reportDataBytes
+        address ethAddress = QuoteParser.extractAddressFromReportDataBytes(reportDataBytes);
+        
+        // Extract measurements for workloadId from tdReportBytes
+        (
+            bytes memory mrtd,
+            bytes memory rtmr0,
+            bytes memory rtmr1,
+            bytes memory rtmr2,
+            bytes memory rtmr3,
+            bytes memory mrowner,
+            bytes memory mrownerconfig,
+            bytes memory mrconfigid
+        ) = QuoteParser.extractMeasurementsForWorkloadId(tdReportBytes);
+        
+        bytes32 workloadId = QuoteParser.calculateWorkloadId(
+            mrtd, rtmr0, rtmr1, rtmr2, rtmr3, mrowner, mrownerconfig, mrconfigid
+        );
+
+        // Optional: Check if msg.sender is ethAddress or an authorized operator
+        // require(msg.sender == ethAddress || isOperator[msg.sender], "Caller not authorized");
+
+        allowlistRegistry.addAddress(workloadId, ethAddress, rawQuote);
+        
+        emit TEEServiceRegistered(workloadId, ethAddress, rawQuote);
+        emit AttestationVerificationAttempt(workloadId, ethAddress, true, dcapOutputBytes);
+    }
+
+    function verifyAttestation(bytes32 workloadId, address serviceAddress) external returns (bool) {
+        IAllowlistRegistry.AttestationInfo memory info = allowlistRegistry.getAttestationInfo(workloadId, serviceAddress);
+        require(info.quote.length > 0, "Flashtestations: No attestation found for this address and workload");
+
+        (bool isValidQuote, bytes memory outputOrError) = dcapAttestationContract.verifyAndAttestOnChain(info.quote);
+
+        bool finalValidity = isValidQuote;
+        if (isValidQuote) {
+            // If cryptographically valid, check TCB status from the output
+            AttestationOutput memory attestationOut = abi.decode(outputOrError, (AttestationOutput));
+            if (attestationOut.tcbStatus != TCBStatus.OK) { // Example: only allow OK status
+                allowlistRegistry.markOutdated(workloadId, serviceAddress);
+                finalValidity = false; // Override based on TCB status
+            } else {
+                 allowlistRegistry.updateVerificationTimestamp(workloadId, serviceAddress);
+            }
+        } else {
+            // Cryptographic verification failed
+            allowlistRegistry.markOutdated(workloadId, serviceAddress);
+        }
+        
+        emit AttestationVerificationAttempt(workloadId, serviceAddress, finalValidity, outputOrError);
+        return finalValidity;
+    }
+
+    function signalEndorsementUpdate(bytes calldata rawEndorsementData) external onlyOwner {
+        // This function's main purpose is for the transparency log.
+        // Actual re-verification of attestations happens passively via `verifyAttestation`.
+        emit EndorsementUpdated(rawEndorsementData, true); // `true` here is a placeholder for validity status if known
+    }
+}
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Solidity
+IGNORE_WHEN_COPYING_END
+foundry.toml
+[profile.default]
+src = 'contracts'
+out = 'out'
+libs = ['node_modules', 'lib']
+remappings = [
+    '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
+    '@automata-network/on-chain-pccs/=lib/automata-on-chain-pccs/src/',
+    'risc0/=lib/automata-dcap-attestation/lib/risc0-ethereum/contracts/src/',
+    '@sp1-contracts/=lib/automata-dcap-attestation/lib/sp1-contracts/contracts/src/'
+]
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
+
+# Specify Solidity compiler version
+solc_version = "0.8.20" # Or your preferred version, ensure compatibility
+
+# Enable optimizer
+optimizer = true
+optimizer_runs = 200
+
+# Optional: Enable viaIR for potentially better optimization with complex code
+# via_ir = true
+
+# Optional: Specify EVM version if needed, "paris" is a good default for modern features
+# evm_version = "paris"
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Toml
+IGNORE_WHEN_COPYING_END
+remappings.txt
+@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/
+@automata-network/on-chain-pccs/=lib/automata-on-chain-pccs/src/
+risc0/=lib/automata-dcap-attestation/lib/risc0-ethereum/contracts/src/
+@sp1-contracts/=lib/automata-dcap-attestation/lib/sp1-contracts/contracts/src/
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+IGNORE_WHEN_COPYING_END
+
+This set of files should provide a complete, self-contained representation of the core Flashtestations protocol smart contracts as discussed. Remember that the QuoteParser.sol still contains simplifications regarding the exact byte offsets within the TDREPORT_STRUCT and assumes AttestationOutput.quoteBody is this raw structure. Thorough testing with real TDX quotes and outputs from the Automata verifier will be essential.

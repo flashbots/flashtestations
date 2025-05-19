@@ -3,3 +3,5 @@ solmate/=lib/solmate/
 automata-dcap-attestation/=lib/automata-dcap-attestation/evm/
 @automata-network/on-chain-pccs/=lib/automata-dcap-attestation/evm/lib/automata-on-chain-pccs/src/
 solady/=lib/automata-dcap-attestation/evm/lib/automata-on-chain-pccs/lib/solady/src/
+@sp1-contracts/=lib/automata-dcap-attestation/evm/lib/sp1-contracts/contracts/src/
+risc0/=lib/automata-dcap-attestation/evm/lib/risc0-ethereum/contracts/src
