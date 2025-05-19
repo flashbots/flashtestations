@@ -42,12 +42,26 @@ Its first use case will be for proving that blocks on the Unichain L2 were built
     
     b. Mark TEE device as "retired"
 
+## Deploy
+
+This will perform a simple test to see if onchain verification of a tdx attestation works
+
+`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/TEERegistry.s.sol:TEERegistryScript`
+
 ## TODOs
 
-- [] Implement Governance-related values
 - [] Implement TEE Device Registry
 - [] Implement Flashtestation transaction verification
 - [] Implement TEE Device Deregistration
+
+## Open Questions
+- Should it be Upgradeable?
+    Pros:
+    Cons:
+Should we use Automata's DAO contracts for endorsement/collateral management, or implement our own?
+    Pros:
+    Cons:
+
 
 ## Foundry
 
