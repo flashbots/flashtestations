@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {TEERegistry} from "../src/TEERegistry.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
 
+
 contract TEERegistryScript is Script {
     TEERegistry public registry;
     AutomataDcapAttestationFee public attestationFee;
