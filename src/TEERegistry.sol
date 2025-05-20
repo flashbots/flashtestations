@@ -86,16 +86,20 @@ contract TEERegistry is Owned {
      * @param attestationFeeContract The address of the AutomataDcapAttestationFee contract
      * @param quote The DCAP quote to verify
      */
-    function verifyQuoteWithAttestationFee(address attestationFeeContract, bytes calldata quote) 
+    function verifyQuoteWithAttestationFee(address attestationFeeContract, bytes calldata quote)
         external
         onlyOwner
         limitBytesSize(quote)
         returns (bool, bytes memory)
     {
-        (bool success, bytes memory output) = AutomataDcapAttestationFee(attestationFeeContract).verifyAndAttestOnChain(quote);
+        (bool success, bytes memory output) =
+            AutomataDcapAttestationFee(attestationFeeContract).verifyAndAttestOnChain(quote);
 
         if (success) {
             isVerified = true; // TODO: delete this once done testing
+
+            // TODO: check that quote is v4 and for TDX, look at AttestationEntrypointBase._parseQuoteHeader
+            // for how to get these values from the quote header
 
             // since the verifyAndAttestOnChain call has succeeded, we can safely
             // decode the output into the report body struct. We implicitly assume
@@ -104,7 +108,6 @@ contract TEERegistry is Owned {
             TD10ReportBody memory td10ReportBody = abi.decode(output, (TD10ReportBody));
 
             // TODO do flashtestations protocol, so far we've only verified that the quote is valid
-
         }
 
         return (success, output);
