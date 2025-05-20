@@ -12,9 +12,9 @@ contract TEERegistryScript is Script {
 
     function setUp() public {}
 
-    address public constant ETHEREUM_SEPOLIA_ATTESTATION_FEE_ADDRESS = 0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF;
+    address public constant UNICHAIN_SEPOLIA_ATTESTATION_FEE_ADDRESS = 0x95175096a9B74165BE0ac84260cc14Fc1c0EF5FF;
 
-    // note, this currently only works on Ethereum Sepolia chain
+    // TODO: this currently only works on Unichain Sepolia chain, generalize it with a proper .env file later on
     function run() public {
         vm.startBroadcast();
 
@@ -37,10 +37,16 @@ contract TEERegistryScript is Script {
         // Example: Call verifyQuoteWithAttestationFee with a sample quote
         bytes memory sampleQuote = vm.readFileBinary("test/quote.raw");
 
-        (bool success, bytes memory output) = registry.verifyQuoteWithAttestationFee(address(ETHEREUM_SEPOLIA_ATTESTATION_FEE_ADDRESS), sampleQuote);
-
-        if (!success) {
-            console.log(string(output));
+        try registry.verifyQuoteWithAttestationFee(address(UNICHAIN_SEPOLIA_ATTESTATION_FEE_ADDRESS), sampleQuote) returns (bool success, bytes memory output) {
+            if (!success) {
+                console.log("verifyQuoteWithAttestationFee failed");
+                console.log("error output:", string(output));
+            } else {
+                console.log("verifyQuoteWithAttestationFee succeeded");
+            }
+        } catch (bytes memory errorOutput) {
+            console.log("verifyQuoteWithAttestationFee reverted");
+            console.log("error output:", string(errorOutput));
         }
         console.log("TEERegistry isVerified:", registry.isVerified());
 
