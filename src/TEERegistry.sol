@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import "solmate/src/auth/Owned.sol";
 import {TDXLibrary} from "./utils/TDXLibrary.sol";
 import {AutomataDcapAttestationFee} from "../lib/automata-dcap-attestation/evm/contracts/AutomataDcapAttestationFee.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
 /**
  * @title TEERegistry
@@ -85,15 +86,28 @@ contract TEERegistry is Owned {
      * @param attestationFeeContract The address of the AutomataDcapAttestationFee contract
      * @param quote The DCAP quote to verify
      */
-    function verifyQuoteWithAttestationFee(address attestationFeeContract, bytes calldata quote) 
+    function verifyQuoteWithAttestationFee(address attestationFeeContract, bytes calldata quote)
         external
         onlyOwner
         limitBytesSize(quote)
         returns (bool, bytes memory)
     {
-        (bool success, bytes memory output) = AutomataDcapAttestationFee(attestationFeeContract).verifyAndAttestOnChain(quote);
+        (bool success, bytes memory output) =
+            AutomataDcapAttestationFee(attestationFeeContract).verifyAndAttestOnChain(quote);
+
         if (success) {
-            isVerified = true;
+            isVerified = true; // TODO: delete this once done testing
+
+            // TODO: check that quote is v4 and for TDX, look at AttestationEntrypointBase._parseQuoteHeader
+            // for how to get these values from the quote header
+
+            // since the verifyAndAttestOnChain call has succeeded, we can safely
+            // decode the output into the report body struct. We implicitly assume
+            // only V4 TDX quotes will be used here, and not SGX quotes. If you use
+            // anything else, you're on your own
+            TD10ReportBody memory td10ReportBody = abi.decode(output, (TD10ReportBody));
+
+            // TODO do flashtestations protocol, so far we've only verified that the quote is valid
         }
 
         return (success, output);
