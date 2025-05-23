@@ -2,11 +2,13 @@
 pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
-import {TEERegistry} from "../src/TEERegistry.sol";
+import {AllowList} from "../src/AllowList.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+import {TD_REPORT10_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
-contract TEERegistryScript is Script {
-    TEERegistry public registry;
+contract AllowListScript is Script {
+    AllowList public registry;
     AutomataDcapAttestationFee public attestationFee;
 
     function setUp() public {}
@@ -27,7 +29,7 @@ contract TEERegistryScript is Script {
 
         console.log("REGISTRY_INITIAL_OWNER:", initialOwner);
 
-        registry = new TEERegistry(initialOwner);
+        registry = new AllowList(initialOwner);
 
         // Deploy AutomataDcapAttestationFee with deployer as owner
         console.log("msg.sender:", msg.sender);
@@ -42,7 +44,6 @@ contract TEERegistryScript is Script {
         if (!success) {
             console.log(string(output));
         }
-        console.log("TEERegistry isVerified:", registry.isVerified());
 
         vm.stopBroadcast();
     }

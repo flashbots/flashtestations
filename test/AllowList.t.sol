@@ -2,13 +2,13 @@
 pragma solidity 0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
-import {TEERegistry} from "../src/TEERegistry.sol";
+import {AllowList} from "../src/AllowList.sol";
 
-contract TEERegistryTest is Test {
-    TEERegistry public registry;
+contract AllowListTest is Test {
+    AllowList public registry;
 
     function setUp() public {
-        registry = new TEERegistry(address(this));
+        registry = new AllowList(address(this));
     }
 
     function test_SetPKI() public {}

@@ -46,7 +46,7 @@ Its first use case will be for proving that blocks on the Unichain L2 were built
 
 This will perform a simple test to see if onchain verification of a tdx attestation works
 
-`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/TEERegistry.s.sol:TEERegistryScript`
+`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/AllowList.s.sol:AllowListScript`
 
 ## TODOs
 
