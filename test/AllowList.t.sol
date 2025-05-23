@@ -11,7 +11,7 @@ contract AllowListTest is Test {
         registry = new AllowList(address(this));
     }
 
-    function test_SetPKI() public {}
+    function test_registerTEEService() public {}
 
-    function testFuzz_SetPKI(bytes memory _ca, bytes memory _pubkey, bytes memory _attestation) public {}
+    function testFuzz_registerTEEService(bytes memory _quote) public {}
 }

@@ -8,8 +8,7 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
 import {TD_REPORT10_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
 contract AllowListScript is Script {
-    AllowList public registry;
-    AutomataDcapAttestationFee public attestationFee;
+    AllowList public allowlist;
 
     function setUp() public {}
 
@@ -19,31 +18,12 @@ contract AllowListScript is Script {
     function run() public {
         vm.startBroadcast();
 
-        address initialOwner;
-        try vm.envAddress("REGISTRY_INITIAL_OWNER") returns (address owner) {
-            initialOwner = owner;
-        } catch {
-            console.log("Warning: REGISTRY_INITIAL_OWNER not found in environment variables, using msg.sender");
-            initialOwner = msg.sender;
-        }
+        allowlist = new AllowList(ETHEREUM_SEPOLIA_ATTESTATION_FEE_ADDRESS);
 
-        console.log("REGISTRY_INITIAL_OWNER:", initialOwner);
-
-        registry = new AllowList(initialOwner);
-
-        // Deploy AutomataDcapAttestationFee with deployer as owner
-        console.log("msg.sender:", msg.sender);
-        attestationFee = new AutomataDcapAttestationFee(msg.sender);
-
-        // Example: Call verifyQuoteWithAttestationFee with a sample quote
+        // Example: Call registerTEEService with a sample quote
         bytes memory sampleQuote = vm.readFileBinary("test/quote.raw");
 
-        (bool success, bytes memory output) =
-            registry.verifyQuoteWithAttestationFee(address(ETHEREUM_SEPOLIA_ATTESTATION_FEE_ADDRESS), sampleQuote);
-
-        if (!success) {
-            console.log(string(output));
-        }
+        allowlist.registerTEEService(sampleQuote);
 
         vm.stopBroadcast();
     }
