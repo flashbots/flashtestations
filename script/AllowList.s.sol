@@ -20,8 +20,10 @@ contract AllowListScript is Script {
 
         allowlist = new AllowList(ETHEREUM_SEPOLIA_ATTESTATION_FEE_ADDRESS);
 
-        // Example: Call registerTEEService with a sample quote
-        bytes memory sampleQuote = vm.readFileBinary("test/quote.raw");
+        // Example: Call registerTEEService with a sample quote whose user data is simply `00`
+        bytes memory sampleQuote = vm.readFileBinary(
+            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
+        );
 
         allowlist.registerTEEService(sampleQuote);
 

@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {AutomataDcapAttestationFee} from "../lib/automata-dcap-attestation/evm/contracts/AutomataDcapAttestationFee.sol";
-import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+import {IAttestation} from "./interfaces/IAttestation.sol";
 import {QuoteParser, WorkloadId} from "./utils/QuoteParser.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+
+// TEE identity and status tracking
+struct RegisteredTEE {
+    uint64 registeredAt; // The most recent timestamp that the TEE last registered with a valid quote
+    WorkloadId workloadId; // The workloadID of the TEE device
+    bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote re-verification
+}
 
 /**
  * @title AllowList
@@ -11,7 +18,6 @@ import {QuoteParser, WorkloadId} from "./utils/QuoteParser.sol";
  * using Automata's Intel DCAP attestation
  */
 contract AllowList {
-
     // Constants
 
     // Maximum size for byte arrays to prevent DoS attacks
@@ -19,18 +25,11 @@ contract AllowList {
 
     // Structs
 
-    // TEE identity and status tracking
-    struct RegisteredTEE {
-        uint64 registeredAt; // The most recent timestamp that the TEE last registered with a valid quote
-        WorkloadId workloadId; // The workloadID of the TEE device
-        bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote re-verification
-    }
-
     // Storage Variables
 
     // The address of the Automata DCAP Attestation contract, which verifies TEE quotes.
     // This is deployed by Automata, and once set on the AllowList, it cannot be changed
-    address public attestationContract;
+    IAttestation public attestationContract;
 
     // Used to track registered TEEs by the Ethereum address in the quote that originally registered them
     mapping(address => RegisteredTEE) public registeredTEEs;
@@ -54,7 +53,7 @@ contract AllowList {
      * @param _attestationContract The address of the attestation contract
      */
     constructor(address _attestationContract) {
-        attestationContract = _attestationContract;
+        attestationContract = IAttestation(_attestationContract);
     }
 
     /**
@@ -73,8 +72,7 @@ contract AllowList {
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      */
     function registerTEEService(bytes calldata rawQuote) external limitBytesSize(rawQuote) {
-        (bool success, bytes memory output) =
-            AutomataDcapAttestationFee(attestationContract).verifyAndAttestOnChain(rawQuote);
+        (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
 
         if (!success) {
             revert InvalidQuote(output);
