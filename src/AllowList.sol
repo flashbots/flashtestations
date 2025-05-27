@@ -31,22 +31,20 @@ contract AllowList {
     // This is deployed by Automata, and once set on the AllowList, it cannot be changed
     IAttestation public attestationContract;
 
-    // Used to track registered TEEs by the Ethereum address in the quote that originally registered them
+    // Tracks the TEE-controlled address that registered a particular WorkloadId and attestation quote.
+    // This enables efficient O(1) lookup in `isValidWorkload`, so that apps can quickly verify the
+    // output of a TEE workload
     mapping(address => RegisteredTEE) public registeredTEEs;
-
-    // Used to track registered TEEs by their (ethAddress, workloadId) pair,
-    // which is needed for when
-    mapping(WorkloadId => RegisteredTEE) public registeredTEEsByWorkloadId;
 
     // Events
 
-    event TEEServiceRegistered(address ethAddress, WorkloadId workloadId, bytes rawQuote, bool alreadyExists);
+    event TEEServiceRegistered(address teeAddress, WorkloadId workloadId, bytes rawQuote, bool alreadyExists);
 
     // Errors
 
     error InvalidQuote(bytes output);
     error ByteSizeExceeded(uint256 size);
-    error TEEServiceAlreadyRegistered(address ethAddress, WorkloadId workloadId);
+    error TEEServiceAlreadyRegistered(address teeAddress, WorkloadId workloadId);
 
     /**
      * Constructor to set the the Automata DCAP Attestation contract, which verifies TEE quotes
@@ -66,7 +64,7 @@ contract AllowList {
     }
 
     /**
-     * @notice Registers a TEE workload with a specific Ethereum address in the AllowList
+     * @notice Registers a TEE workload with a specific TEE-controlled address in the AllowList
      * @notice The TEE must be registered with a quote whose validity is verified by the attestationContract
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
@@ -85,50 +83,51 @@ contract AllowList {
         TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseTD10ReportBody(output);
 
         // extract the ethereum public key from the quote
-        address ethAddress = QuoteParser.extractEthereumAddress(td10ReportBodyStruct);
+        address teeAddress = QuoteParser.extractEthereumAddress(td10ReportBodyStruct);
 
         // extract the workloadId from the quote
         WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
 
         // Register the address in the allowlist with the raw quote for future quote re-verification
-        bool previouslyRegistered = addAddress(workloadId, ethAddress, rawQuote);
+        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote);
 
-        emit TEEServiceRegistered(ethAddress, workloadId, rawQuote, previouslyRegistered);
+        emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, previouslyRegistered);
     }
 
     /**
      * @notice Adds a TEE to the allowlist
-     * @dev It's possible that a TEE has already registered with this ethereum address, but with a different workloadId.
+     * @dev It's possible that a TEE has already registered with this address, but with a different workloadId.
      * This is expected if the TEE gets restarted or upgraded and generates a new workloadId.
-     * It's also possible that the ethereum address and workloadId are the same, but the quote
+     * It's also possible that the address and workloadId are the same, but the quote
      * is different. This is expected if Intel releases a new set of DCAP Endorsements (i.e.
      * a new TCB), in which case the quotes the TEE generates will be different.
      * In both cases, we need to update the allowlist with the new quote.
      * @param workloadId The workloadId of the TEE
-     * @param ethAddress The Ethereum address of the TEE
+     * @param teeAddress The TEE-controlled address of the TEE
      * @param rawQuote The raw quote from the TEE device
      * @return previouslyRegistered Whether the TEE was previously registered
      */
-    function addAddress(WorkloadId workloadId, address ethAddress, bytes calldata rawQuote)
+    function addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote)
         internal
         returns (bool previouslyRegistered)
     {
-        // check if the TEE is already registered with the same ethereum address and workloadId,
-        // in which case this call is a no-op and possibly being called because of user error
+        // if a user is trying to add the same address, workloadId, and quote, this is a no-op
+        // and we should revert to signal that the user may be making a mistake (why would
+        // they be trying to add the same TEE twice?)
         if (
-            WorkloadId.unwrap(registeredTEEs[ethAddress].workloadId) == WorkloadId.unwrap(workloadId)
-                && keccak256(registeredTEEs[ethAddress].rawQuote) == keccak256(rawQuote)
+            WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId)
+                && keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)
         ) {
-            revert TEEServiceAlreadyRegistered(ethAddress, workloadId);
+            revert TEEServiceAlreadyRegistered(teeAddress, workloadId);
         }
 
         // this is a nice-to-have that signals to the user that the TEE was previously registered,
         // but it's not strictly necessary
-        if (registeredTEEs[ethAddress].registeredAt > 0) {
+        if (registeredTEEs[teeAddress].registeredAt > 0) {
             previouslyRegistered = true;
         }
 
-        registeredTEEs[ethAddress] =
+        registeredTEEs[teeAddress] =
             RegisteredTEE({registeredAt: uint64(block.timestamp), workloadId: workloadId, rawQuote: rawQuote});
     }
 

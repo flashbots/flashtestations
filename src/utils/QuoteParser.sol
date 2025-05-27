@@ -12,12 +12,12 @@ import {TD_REPORT10_LENGTH, TDX_TEE} from "automata-dcap-attestation/contracts/t
 // capture cryptographic hashes of code, data, and configuration loaded into the TEE's environment.
 // This means that whenever a TEE device changes anything about its compute stack (e.g. user code,
 // firmware, OS, etc), the workloadID will change.
-// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashblocks.md#workload-identity-derivation) for more details
+// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
 type WorkloadId is bytes32;
 
 /**
  * @title QuoteParser
- * @dev A library for parsing and extracting workload and ethereum address's from Automata DCAP Attestation TDX quotes
+ * @dev A library for parsing and extracting workload and TEE-controlled address from Automata DCAP Attestation TDX quotes
  */
 library QuoteParser {
     using BytesUtils for bytes;
@@ -80,13 +80,13 @@ library QuoteParser {
     }
 
     /**
-     * @notice Extracts the TEE's ephemeralEthereum address from the TD10ReportBody
+     * @notice Extracts the TEE-controlled address from the TD10ReportBody
      * @dev The Ethereum address is derived using the first 64 bytes of the reportData
-     * @dev A core part of the flashtestation's protocol is that the TEE generates an ephemeral
-     * Ethereum address, which is used to identify the TEE in the AllowList. This address is derived
-     * from the TEE's public key, which is included in the quote
-     * @param td10ReportBody The TD10ReportBody to extract the Ethereum address from
-     * @return address Ethereum address
+     * @dev A core part of the flashtestation's protocol is that the TEE generates a TEE-controlled
+     * address, which is used to identify the TEE in the AllowList. This address is derived
+     * from the TEE's public key, which is included in the quote's reportData field
+     * @param td10ReportBody The TD10ReportBody to extract the TEE-controlled address from
+     * @return address TEE-controlled address
      */
     function extractEthereumAddress(TD10ReportBody memory td10ReportBody) internal pure returns (address) {
         if (td10ReportBody.reportData.length != ETHEREUM_PUBLIC_KEY_LENGTH) {
