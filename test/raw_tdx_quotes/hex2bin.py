@@ -1,9 +1,9 @@
 import binascii
 
-with open('quote_events.txt', 'r') as f:
+with open('quote_event.hex', 'r') as f:
     hexdata = f.read().strip()
 
 bindata = binascii.unhexlify(hexdata)
 
-with open('quote.bin', 'wb') as f:
+with open('output.bin', 'wb') as f:
     f.write(bindata) 

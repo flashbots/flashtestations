@@ -12,9 +12,14 @@ import {Output} from "automata-dcap-attestation/contracts/types/CommonStruct.sol
 contract AllowListTest is Test {
     AllowList public allowlist;
     MockAutomataDcapAttestationFee public attestationContract;
+
+    // creating this variable for easy access
     string public bf42quotePath =
         "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/";
-    address public userAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03; // this is the forge-provided address that makes all the function calls
+    
+    // creating this variable for easy access
+    WorkloadId expectedWorkloadId =
+            WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e); // this is the workloadID of the TEE we used when writing our tests
 
     function setUp() public {
         // deploy a fresh set of test contracts before each test
@@ -28,13 +33,8 @@ contract AllowListTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        address expectedAddress = userAddress;
+        address expectedAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03; // this is the address derived from the quote.bin's public key
         uint64 expectedRegisteredAt = uint64(block.timestamp);
-        // note: this is taken directly from the output of QuoteParser.extractWorkloadId, so it's not
-        // a good test of the QuoteParser.extractWorkloadId function, but it's a good regression test
-        WorkloadId expectedWorkloadId =
-            WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e);
-
         bytes memory mockQuote = vm.readFileBinary(Helper.concat(bf42quotePath, "quote.bin"));
         vm.expectEmit(address(allowlist));
         emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
@@ -42,33 +42,48 @@ contract AllowListTest is Test {
 
         (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registeredAt, expectedRegisteredAt, "Registered at mismatch");
+        vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
     }
 
+    // test that we can register the same TEEService again with a different quote
     function test_successful_re_registerTEEService() public {
-        bytes memory mockOutput = vm.readFileBinary(Helper.concat(bf42quotePath, "output.bin"));
+        // do the first register of the TEEService with a valid quote
+        bytes memory mockOutput = vm.readFileBinary(Helper.concat("test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/", "output.bin"));
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        address expectedAddress = userAddress;
+        address expectedAddress = 0x12c14e56d585Dcf3B36f37476c00E78bA9363742; // this is the address derived from the quote.bin's public key
         uint64 expectedRegisteredAt = uint64(block.timestamp);
-        // note: this is taken directly from the output of QuoteParser.extractWorkloadId, so it's not
-        // a good test of the QuoteParser.extractWorkloadId function, but it's a good regression test
-        WorkloadId expectedWorkloadId =
-            WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e);
-
-        bytes memory mockQuote = vm.readFileBinary(Helper.concat(bf42quotePath, "quote.bin"));
+        bytes memory mockQuote = vm.readFileBinary(Helper.concat("test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/", "quote.bin"));
         vm.expectEmit(address(allowlist));
         emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         allowlist.registerTEEService(mockQuote);
 
         (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registeredAt, expectedRegisteredAt, "Registered at mismatch");
+        vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
+
+        // now register the same TEEService again with a different quote
+
+        bytes memory mockOutput2 = vm.readFileBinary(Helper.concat("test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/", "output2.bin"));
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput2);
+
+        bytes memory mockQuote2 = vm.readFileBinary(Helper.concat("test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/", "quote2.bin"));
+        vm.expectEmit(address(allowlist));
+        emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote2, true);
+        allowlist.registerTEEService(mockQuote2);
+
+        (uint64 registeredAt2, WorkloadId workloadId2, bytes memory rawQuote2) = allowlist.registeredTEEs(expectedAddress);
+        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        vm.assertEq(registeredAt2, expectedRegisteredAt, "registeredAt mismatch");
+        vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
+        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
     }
 
     function test_reverts_with_invalid_quote_registerTEEService() public {
@@ -88,10 +103,8 @@ contract AllowListTest is Test {
         bytes memory mockQuote = vm.readFileBinary(Helper.concat(bf42quotePath, "quote.bin"));
         allowlist.registerTEEService(mockQuote);
 
-        address expectedAddress = userAddress;
+        address expectedAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03; // this is the address derived from the quote.bin's public key
         uint64 expectedRegisteredAt = uint64(block.timestamp);
-        WorkloadId expectedWorkloadId =
-            WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e);
 
         vm.expectRevert(
             abi.encodeWithSelector(AllowList.TEEServiceAlreadyRegistered.selector, expectedAddress, expectedWorkloadId)
