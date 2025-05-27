@@ -104,7 +104,7 @@ library QuoteParser {
     function extractWorkloadId(TD10ReportBody memory td10ReportBody) internal pure returns (WorkloadId) {
         return WorkloadId.wrap(
             keccak256(
-                abi.encodePacked(
+                abi.encode(
                     td10ReportBody.mrTd,
                     td10ReportBody.rtMr0,
                     td10ReportBody.rtMr1,
