@@ -342,22 +342,35 @@ library Helper {
         output.advisoryIDs = builder.advisoryIDs;
     }
 
-    function deserializeOutput(bytes memory rawQuote) pure internal returns (Output memory output) {
+    // taken from:
+    // https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/bases/QuoteVerifierBase.sol
+    function serializeOutput(Output memory output) pure internal returns (bytes memory) {
+        return abi.encodePacked(
+            output.quoteVersion,
+            output.tee,
+            output.tcbStatus,
+            output.fmspcBytes,
+            output.quoteBody,
+            output.advisoryIDs.length > 0 ? abi.encode(output.advisoryIDs) : bytes("")
+        );
+    }
+
+    function deserializeOutput(bytes memory rawOutput) pure internal returns (Output memory output) {
         // Offsets based on src/utils/QuoteParser.sol and Output struct definition
         // 0:2   - quoteVersion (uint16, BE)
         // 2:6   - tee (bytes4)
         // 6:7   - tcbStatus (TCBStatus, uint8)
         // 7:13  - fmspcBytes (bytes6)
         // 13:   - quoteBody (bytes)
-        require(rawQuote.length >= 13, "rawQuote too short");
+        require(rawOutput.length >= 13, "rawOutput too short");
         
-        uint16 quoteVersion = uint16(leBytesToBeUint(rawQuote.substring(0, 2)));
-        bytes4 tee = bytes4(rawQuote.substring(2, 6));
-        uint8 tcbStatusByte = uint8(rawQuote[6]);
-        bytes6 fmspcBytes = bytes6(rawQuote.substring(7, 13));
+        uint16 quoteVersion = (uint16(uint8(rawOutput[0])) << 8) | uint16(uint8(rawOutput[1]));
+        bytes4 tee = bytes4(rawOutput.substring(2, 6));
+        uint8 tcbStatusByte = uint8(rawOutput[6]);
+        bytes6 fmspcBytes = bytes6(rawOutput.substring(7, 13));
         
         // Copy quoteBody
-        bytes memory quoteBody = rawQuote.substring(13, rawQuote.length - 13);
+        bytes memory quoteBody = rawOutput.substring(13, rawOutput.length - 13);
         
         string[] memory advisoryIDs;
         output.quoteVersion = quoteVersion;
@@ -366,20 +379,5 @@ library Helper {
         output.fmspcBytes = fmspcBytes;
         output.quoteBody = quoteBody;
         output.advisoryIDs = advisoryIDs;
-    }
-
-    // taken from
-    // https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/utils/BELE.sol
-    function leBytesToBeUint(bytes memory encoded) pure internal returns (uint256 decoded) {
-        for (uint256 i = 0; i < encoded.length; i++) {
-            uint256 digits = uint256(uint8(bytes1(encoded[i])));
-            uint256 upperDigit = digits / 16;
-            uint256 lowerDigit = digits % 16;
-
-            uint256 acc = lowerDigit * (16 ** (2 * i));
-            acc += upperDigit * (16 ** ((2 * i) + 1));
-
-            decoded += acc;
-        }
     }
 }

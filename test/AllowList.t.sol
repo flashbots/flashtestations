@@ -27,9 +27,9 @@ contract AllowListTest is Test {
 
     function test_succesful_registerTEEService() public {
         // first get a valid attestation quote stored
+        bytes memory mockOutput = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "output.bin")));
         attestationContract.setSuccess(true);
-        bytes memory output = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "output.bin")));
-        attestationContract.setOutput(output);
+        attestationContract.setOutput(mockOutput);
 
         address expectedAddress = userAddress;
         uint64 expectedRegisteredAt = uint64(block.timestamp);
@@ -38,15 +38,16 @@ contract AllowListTest is Test {
         WorkloadId expectedWorkloadId =
             WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e);
 
-        bytes memory quote = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "quote.bin")));
+        bytes memory mockQuote = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "quote.bin")));
         vm.expectEmit(address(allowlist));
-        emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, quote, false);
-        allowlist.registerTEEService(quote);
+        emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        allowlist.registerTEEService(mockQuote);
 
         (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
+        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(registeredAt, expectedRegisteredAt, "Registered at mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, quote, "Raw quote mismatch");
+        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
     }
 
     function test_reverts_with_invalid_quote_registerTEEService() public {
@@ -58,35 +59,23 @@ contract AllowListTest is Test {
         allowlist.registerTEEService(quote);
     }
 
-    function test_quote_parsing() public {
-        // first get a valid attestation quote stored
-        attestationContract.setSuccess(true);
+    function test_reverts_with_invalid_quote_version_quote_parsing() public {
+        // test parsing the quote by changing arbitrary values and seeing the changes
+        // have the desired result
+
         bytes memory mockOutput = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "output.bin")));
-        attestationContract.setOutput(mockOutput);
-        bytes memory quote = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "quote.bin")));
-        allowlist.registerTEEService(quote);
+        Output memory output = Helper.deserializeOutput(mockOutput);
+        console.log(output.quoteVersion);
+        output.quoteVersion = 0x0000;
+        console.log(output.quoteVersion);
+        bytes memory serializedOutput = Helper.serializeOutput(output);
 
-        // now test parsing the quote by changing arbitrary values and seeing that
-        // the effect is as we wish
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(serializedOutput);
+        bytes memory mockQuote = vm.readFileBinary(string(abi.encodePacked(bf42quotePath, "quote.bin")));
+        vm.expectRevert(QuoteParser.InvalidTEEVersion.selector, 0);
+        allowlist.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(userAddress);
-        Output memory output = Helper.deserializeOutput(rawQuote);
-        TD10ReportBody memory parsedReport = QuoteParser.parseV4VerifierOutput(output.quoteBody);
-        vm.assertEq(parsedReport.teeTcbSvn, parsedReport.teeTcbSvn, "teeTcbSvn mismatch");
-        vm.assertEq(parsedReport.mrSeam, parsedReport.mrSeam, "mrSeam mismatch");
-        vm.assertEq(parsedReport.mrsignerSeam, parsedReport.mrsignerSeam, "mrsignerSeam mismatch");
-        vm.assertEq(parsedReport.seamAttributes, parsedReport.seamAttributes, "seamAttributes mismatch");
-        vm.assertEq(parsedReport.tdAttributes, parsedReport.tdAttributes, "tdAttributes mismatch");
-        vm.assertEq(parsedReport.xFAM, parsedReport.xFAM, "xFAM mismatch");
-        vm.assertEq(parsedReport.mrTd, parsedReport.mrTd, "mrTd mismatch");
-        vm.assertEq(parsedReport.mrConfigId, parsedReport.mrConfigId, "mrConfigId mismatch");
-        vm.assertEq(parsedReport.mrOwner, parsedReport.mrOwner, "mrOwner mismatch");
-        vm.assertEq(parsedReport.mrOwnerConfig, parsedReport.mrOwnerConfig, "mrOwnerConfig mismatch");
-        vm.assertEq(parsedReport.rtMr0, parsedReport.rtMr0, "rtMr0 mismatch");
-        vm.assertEq(parsedReport.rtMr1, parsedReport.rtMr1, "rtMr1 mismatch");
-        vm.assertEq(parsedReport.rtMr2, parsedReport.rtMr2, "rtMr2 mismatch");
-        vm.assertEq(parsedReport.rtMr3, parsedReport.rtMr3, "rtMr3 mismatch");
-        vm.assertEq(parsedReport.reportData, parsedReport.reportData, "reportData mismatch");
     }
 
     function testFuzz_registerTEEService(bytes memory _quote) public {
