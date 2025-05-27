@@ -80,7 +80,7 @@ contract AllowList {
 
         // now we can safely decode the output into the TDX report body, from which we can extract
         // the ethereum public key and compute the workloadID
-        TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseTD10ReportBody(output);
+        TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
 
         // extract the ethereum public key from the quote
         address teeAddress = QuoteParser.extractEthereumAddress(td10ReportBodyStruct);
@@ -129,11 +129,5 @@ contract AllowList {
 
         registeredTEEs[teeAddress] =
             RegisteredTEE({registeredAt: uint64(block.timestamp), workloadId: workloadId, rawQuote: rawQuote});
-    }
-
-    function verifyFlashestationTransaction(bytes memory attestationTransaction) external {
-        // TODO: Implement
-        // 1. check signature against live builder keys
-        // 2. update liveness
     }
 }
