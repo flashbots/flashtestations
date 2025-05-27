@@ -10,24 +10,24 @@ library Helper {
     using BytesUtils for bytes;
 
     /**
-    * @notice Creates a mock TD10ReportBody with arbitrary field values for testing
-    * @param teeTcbSvn bytes16
-    * @param mrSeam bytes (48 bytes)
-    * @param mrsignerSeam bytes (48 bytes)
-    * @param seamAttributes bytes8
-    * @param tdAttributes bytes8
-    * @param xFAM bytes8
-    * @param mrTd bytes (48 bytes)
-    * @param mrConfigId bytes (48 bytes)
-    * @param mrOwner bytes (48 bytes)
-    * @param mrOwnerConfig bytes (48 bytes)
-    * @param rtMr0 bytes (48 bytes)
-    * @param rtMr1 bytes (48 bytes)
-    * @param rtMr2 bytes (48 bytes)
-    * @param rtMr3 bytes (48 bytes)
-    * @param reportData bytes (64 bytes)
-    * @return report TD10ReportBody
-    */
+     * @notice Creates a mock TD10ReportBody with arbitrary field values for testing
+     * @param teeTcbSvn bytes16
+     * @param mrSeam bytes (48 bytes)
+     * @param mrsignerSeam bytes (48 bytes)
+     * @param seamAttributes bytes8
+     * @param tdAttributes bytes8
+     * @param xFAM bytes8
+     * @param mrTd bytes (48 bytes)
+     * @param mrConfigId bytes (48 bytes)
+     * @param mrOwner bytes (48 bytes)
+     * @param mrOwnerConfig bytes (48 bytes)
+     * @param rtMr0 bytes (48 bytes)
+     * @param rtMr1 bytes (48 bytes)
+     * @param rtMr2 bytes (48 bytes)
+     * @param rtMr3 bytes (48 bytes)
+     * @param reportData bytes (64 bytes)
+     * @return report TD10ReportBody
+     */
     function createMockTD10ReportBody(
         bytes16 teeTcbSvn,
         bytes memory mrSeam,
@@ -44,7 +44,7 @@ library Helper {
         bytes memory rtMr2,
         bytes memory rtMr3,
         bytes memory reportData
-    ) pure internal returns (TD10ReportBody memory report) {
+    ) internal pure returns (TD10ReportBody memory report) {
         report.teeTcbSvn = teeTcbSvn;
         report.mrSeam = mrSeam;
         report.mrsignerSeam = mrsignerSeam;
@@ -63,9 +63,9 @@ library Helper {
     }
 
     /**
-    * @title TD10ReportBodyBuilder
-    * @notice Builder pattern for TD10ReportBody to allow incremental construction for testing
-    */
+     * @title TD10ReportBodyBuilder
+     * @notice Builder pattern for TD10ReportBody to allow incremental construction for testing
+     */
     struct TD10ReportBodyBuilder {
         bytes16 teeTcbSvn;
         bytes mrSeam;
@@ -84,7 +84,7 @@ library Helper {
         bytes reportData;
     }
 
-    function newTD10ReportBodyBuilder() pure internal returns (TD10ReportBodyBuilder memory) {
+    function newTD10ReportBodyBuilder() internal pure returns (TD10ReportBodyBuilder memory) {
         return TD10ReportBodyBuilder({
             teeTcbSvn: bytes16(0),
             mrSeam: new bytes(0),
@@ -105,8 +105,8 @@ library Helper {
     }
 
     function withTeeTcbSvn(TD10ReportBodyBuilder memory builder, bytes16 value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.teeTcbSvn = value;
@@ -114,8 +114,8 @@ library Helper {
     }
 
     function withMrSeam(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.mrSeam = value;
@@ -123,8 +123,8 @@ library Helper {
     }
 
     function withMrsignerSeam(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.mrsignerSeam = value;
@@ -132,8 +132,8 @@ library Helper {
     }
 
     function withSeamAttributes(TD10ReportBodyBuilder memory builder, bytes8 value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.seamAttributes = value;
@@ -141,22 +141,26 @@ library Helper {
     }
 
     function withTdAttributes(TD10ReportBodyBuilder memory builder, bytes8 value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.tdAttributes = value;
         return builder;
     }
 
-    function withXFAM(TD10ReportBodyBuilder memory builder, bytes8 value) pure internal returns (TD10ReportBodyBuilder memory) {
+    function withXFAM(TD10ReportBodyBuilder memory builder, bytes8 value)
+        internal
+        pure
+        returns (TD10ReportBodyBuilder memory)
+    {
         builder.xFAM = value;
         return builder;
     }
 
     function withMrTd(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.mrTd = value;
@@ -164,8 +168,8 @@ library Helper {
     }
 
     function withMrConfigId(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.mrConfigId = value;
@@ -173,8 +177,8 @@ library Helper {
     }
 
     function withMrOwner(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.mrOwner = value;
@@ -182,8 +186,8 @@ library Helper {
     }
 
     function withMrOwnerConfig(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.mrOwnerConfig = value;
@@ -191,8 +195,8 @@ library Helper {
     }
 
     function withRtMr0(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.rtMr0 = value;
@@ -200,8 +204,8 @@ library Helper {
     }
 
     function withRtMr1(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.rtMr1 = value;
@@ -209,8 +213,8 @@ library Helper {
     }
 
     function withRtMr2(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.rtMr2 = value;
@@ -218,8 +222,8 @@ library Helper {
     }
 
     function withRtMr3(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.rtMr3 = value;
@@ -227,15 +231,15 @@ library Helper {
     }
 
     function withReportData(TD10ReportBodyBuilder memory builder, bytes memory value)
-        pure
         internal
+        pure
         returns (TD10ReportBodyBuilder memory)
     {
         builder.reportData = value;
         return builder;
     }
 
-    function build(TD10ReportBodyBuilder memory builder) pure internal returns (TD10ReportBody memory report) {
+    function build(TD10ReportBodyBuilder memory builder) internal pure returns (TD10ReportBody memory report) {
         report.teeTcbSvn = builder.teeTcbSvn;
         report.mrSeam = builder.mrSeam;
         report.mrsignerSeam = builder.mrsignerSeam;
@@ -253,7 +257,7 @@ library Helper {
         report.reportData = builder.reportData;
     }
 
-    function serializeTD10ReportBody(TD10ReportBody memory report) pure internal returns (bytes memory) {
+    function serializeTD10ReportBody(TD10ReportBody memory report) internal pure returns (bytes memory) {
         // Validate field lengths
         require(report.mrSeam.length == 48, "mrSeam must be 48 bytes");
         require(report.mrsignerSeam.length == 48, "mrsignerSeam must be 48 bytes");
@@ -296,7 +300,7 @@ library Helper {
         string[] advisoryIDs;
     }
 
-    function newOutputBuilder() pure internal returns (OutputBuilder memory) {
+    function newOutputBuilder() internal pure returns (OutputBuilder memory) {
         string[] memory emptyAdvisoryIDs;
         return OutputBuilder({
             quoteVersion: 0,
@@ -308,32 +312,53 @@ library Helper {
         });
     }
 
-    function withQuoteVersion(OutputBuilder memory builder, uint16 value) pure internal returns (OutputBuilder memory) {
+    function withQuoteVersion(OutputBuilder memory builder, uint16 value)
+        internal
+        pure
+        returns (OutputBuilder memory)
+    {
         builder.quoteVersion = value;
         return builder;
     }
-    function withTee(OutputBuilder memory builder, bytes4 value) pure internal returns (OutputBuilder memory) {
+
+    function withTee(OutputBuilder memory builder, bytes4 value) internal pure returns (OutputBuilder memory) {
         builder.tee = value;
         return builder;
     }
-    function withTcbStatus(OutputBuilder memory builder, TCBStatus value) pure internal returns (OutputBuilder memory) {
+
+    function withTcbStatus(OutputBuilder memory builder, TCBStatus value)
+        internal
+        pure
+        returns (OutputBuilder memory)
+    {
         builder.tcbStatus = value;
         return builder;
     }
-    function withFmspcBytes(OutputBuilder memory builder, bytes6 value) pure internal returns (OutputBuilder memory) {
+
+    function withFmspcBytes(OutputBuilder memory builder, bytes6 value) internal pure returns (OutputBuilder memory) {
         builder.fmspcBytes = value;
         return builder;
     }
-    function withQuoteBody(OutputBuilder memory builder, bytes memory value) pure internal returns (OutputBuilder memory) {
+
+    function withQuoteBody(OutputBuilder memory builder, bytes memory value)
+        internal
+        pure
+        returns (OutputBuilder memory)
+    {
         builder.quoteBody = value;
         return builder;
     }
-    function withAdvisoryIDs(OutputBuilder memory builder, string[] memory value) pure internal returns (OutputBuilder memory) {
+
+    function withAdvisoryIDs(OutputBuilder memory builder, string[] memory value)
+        internal
+        pure
+        returns (OutputBuilder memory)
+    {
         builder.advisoryIDs = value;
         return builder;
     }
 
-    function build(OutputBuilder memory builder) pure internal returns (Output memory output) {
+    function build(OutputBuilder memory builder) internal pure returns (Output memory output) {
         output.quoteVersion = builder.quoteVersion;
         output.tee = builder.tee;
         output.tcbStatus = builder.tcbStatus;
@@ -344,7 +369,7 @@ library Helper {
 
     // taken from:
     // https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/bases/QuoteVerifierBase.sol
-    function serializeOutput(Output memory output) pure internal returns (bytes memory) {
+    function serializeOutput(Output memory output) internal pure returns (bytes memory) {
         return abi.encodePacked(
             output.quoteVersion,
             output.tee,
@@ -355,7 +380,7 @@ library Helper {
         );
     }
 
-    function deserializeOutput(bytes memory rawOutput) pure internal returns (Output memory output) {
+    function deserializeOutput(bytes memory rawOutput) internal pure returns (Output memory output) {
         // Offsets based on src/utils/QuoteParser.sol and Output struct definition
         // 0:2   - quoteVersion (uint16, BE)
         // 2:6   - tee (bytes4)
@@ -363,15 +388,15 @@ library Helper {
         // 7:13  - fmspcBytes (bytes6)
         // 13:   - quoteBody (bytes)
         require(rawOutput.length >= 13, "rawOutput too short");
-        
+
         uint16 quoteVersion = (uint16(uint8(rawOutput[0])) << 8) | uint16(uint8(rawOutput[1]));
         bytes4 tee = bytes4(rawOutput.substring(2, 6));
         uint8 tcbStatusByte = uint8(rawOutput[6]);
         bytes6 fmspcBytes = bytes6(rawOutput.substring(7, 13));
-        
+
         // Copy quoteBody
         bytes memory quoteBody = rawOutput.substring(13, rawOutput.length - 13);
-        
+
         string[] memory advisoryIDs;
         output.quoteVersion = quoteVersion;
         output.tee = tee;
@@ -379,5 +404,9 @@ library Helper {
         output.fmspcBytes = fmspcBytes;
         output.quoteBody = quoteBody;
         output.advisoryIDs = advisoryIDs;
+    }
+
+    function concat(string memory a, string memory b) internal pure returns (string memory) {
+        return string(abi.encodePacked(a, b));
     }
 }

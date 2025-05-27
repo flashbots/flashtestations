@@ -83,7 +83,6 @@ library QuoteParser {
         report.rtMr3 = rawReportBody.substring(472, 48);
         report.reportData = rawReportBody.substring(520, 64);
     }
-    
 
     /**
      * @notice Extracts the TEE-controlled address from the TD10ReportBody
