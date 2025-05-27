@@ -25,7 +25,7 @@ contract AllowListTest is Test {
         uint64 expectedRegisteredAt = uint64(block.timestamp);
         // note: this is taken directly from the output of QuoteParser.extractWorkloadId, so it's not
         // a good test of the QuoteParser.extractWorkloadId function, but it's a good regression test
-        WorkloadId expectedWorkloadId = WorkloadId.wrap(0x3db2a20cfbe18050a9996d00a94ad82346bc340a438906d04c5a1f960f31a416);
+        WorkloadId expectedWorkloadId = WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e);
 
         bytes memory quote = vm.readFileBinary("test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin");
         vm.expectEmit(address(allowlist));
