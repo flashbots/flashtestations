@@ -46,21 +46,20 @@ Its first use case will be for proving that blocks on the Unichain L2 were built
 
 This will perform a simple test to see if onchain verification of a tdx attestation works
 
-`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/TEERegistry.s.sol:TEERegistryScript`
+`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/AllowList.s.sol:AllowListScript`
 
 ## TODOs
 
-- [] Implement TEE Device Registry
+- [X] Implement TEE Device Registry
 - [] Implement Flashtestation transaction verification
-- [] Implement TEE Device Deregistration
 
 ## Open Questions
 - Should it be Upgradeable?
-    Pros:
+    Pros: 
+        - very simple to account for changes to the Automata DCAP Attestation contract, contract bugs, contract upgrades
+        - Doesn't really impact the trust model, because we already expect to have some Security Council of Unichain + Flashbots in the beginning that manages which workloadIDs to trust (via the setting of Policies)
     Cons:
-Should we use Automata's DAO contracts for endorsement/collateral management, or implement our own?
-    Pros:
-    Cons:
+        - trust model now relies on owner (probably a security council of Unichain + Flashbots) to remain not collude. If they do collude, they can upgrade the contract to emit a malicious `Registered` event and trick users into incorrectly trusting that blocks are being verified by a trusted TEE
 
 
 ## Foundry
