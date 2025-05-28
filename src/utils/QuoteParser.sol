@@ -88,7 +88,7 @@ library QuoteParser {
      * @notice Extracts the TEE-controlled address from the TD10ReportBody
      * @dev The Ethereum address is derived using the first 64 bytes of the reportData
      * @dev A core part of the flashtestation's protocol is that the TEE generates a TEE-controlled
-     * address, which is used to identify the TEE in the AllowList. This address is derived
+     * address, which is used to identify the TEE in the FlashtestationRegistry. This address is derived
      * from the TEE's public key, which is included in the quote's reportData field
      * @param td10ReportBody The TD10ReportBody to extract the TEE-controlled address from
      * @return address TEE-controlled address

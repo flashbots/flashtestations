@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
-import {AllowList, RegisteredTEE} from "../src/AllowList.sol";
+import {FlashtestationRegistry, RegisteredTEE} from "../src/FlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
 import {Helper} from "./helpers/Helper.sol";
@@ -17,8 +17,8 @@ struct MockQuote {
     WorkloadId workloadId;
 }
 
-contract AllowListTest is Test {
-    AllowList public allowlist;
+contract FlashtestationRegistryTest is Test {
+    FlashtestationRegistry public registry;
     MockAutomataDcapAttestationFee public attestationContract;
     MockQuote bf42Mock = MockQuote({
         output: vm.readFileBinary(
@@ -44,7 +44,7 @@ contract AllowListTest is Test {
     function setUp() public {
         // deploy a fresh set of test contracts before each test
         attestationContract = new MockAutomataDcapAttestationFee();
-        allowlist = new AllowList(address(attestationContract));
+        registry = new FlashtestationRegistry(address(attestationContract));
     }
 
     function test_successful_registerTEEService() public {
@@ -60,12 +60,12 @@ contract AllowListTest is Test {
         attestationContract.setOutput(mockOutput);
 
         uint64 expectedRegisteredAt = uint64(block.timestamp);
-        vm.expectEmit(address(allowlist));
-        emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         vm.prank(expectedAddress);
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
+        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
@@ -85,12 +85,12 @@ contract AllowListTest is Test {
 
         uint64 expectedRegisteredAt = uint64(block.timestamp);
 
-        vm.expectEmit(address(allowlist));
-        emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         vm.prank(expectedAddress);
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
+        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
@@ -107,13 +107,13 @@ contract AllowListTest is Test {
         bytes memory mockQuote2 = vm.readFileBinary(
             "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote2.bin"
         );
-        vm.expectEmit(address(allowlist));
-        emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote2, true);
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote2, true);
         vm.prank(expectedAddress);
-        allowlist.registerTEEService(mockQuote2);
+        registry.registerTEEService(mockQuote2);
 
         (uint64 registeredAt2, WorkloadId workloadId2, bytes memory rawQuote2) =
-            allowlist.registeredTEEs(expectedAddress);
+            registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertEq(registeredAt2, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
@@ -125,9 +125,9 @@ contract AllowListTest is Test {
         attestationContract.setSuccess(false);
         // don't bother setting the output, since it should revert before it's used
 
-        vm.expectPartialRevert(AllowList.InvalidQuote.selector); // the "partial" just means we don't care about the bytes argument to InvalidQuote(bytes)
+        vm.expectPartialRevert(FlashtestationRegistry.InvalidQuote.selector); // the "partial" just means we don't care about the bytes argument to InvalidQuote(bytes)
         bytes memory quote = bf42Mock.quote;
-        allowlist.registerTEEService(quote);
+        registry.registerTEEService(quote);
     }
 
     function test_reverts_with_registering_same_quote_twice() public {
@@ -140,13 +140,15 @@ contract AllowListTest is Test {
         attestationContract.setOutput(mockOutput);
 
         vm.prank(expectedAddress);
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
 
         vm.expectRevert(
-            abi.encodeWithSelector(AllowList.TEEServiceAlreadyRegistered.selector, expectedAddress, expectedWorkloadId)
+            abi.encodeWithSelector(
+                FlashtestationRegistry.TEEServiceAlreadyRegistered.selector, expectedAddress, expectedWorkloadId
+            )
         );
         vm.prank(expectedAddress);
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
     }
 
     function test_reverts_with_invalid_quote_version_quote_parsing_helper() public {
@@ -160,7 +162,7 @@ contract AllowListTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(serializedOutput);
         vm.expectRevert(QuoteParser.InvalidTEEVersion.selector, 0);
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
     }
 
     function test_reverts_with_invalid_tee_type() public {
@@ -174,7 +176,7 @@ contract AllowListTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(serializedOutput);
         vm.expectRevert(QuoteParser.InvalidTEEType.selector, 0);
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
     }
 
     function test_reverts_with_too_large_quote() public {
@@ -182,8 +184,8 @@ contract AllowListTest is Test {
 
         // take a 4.9K file and concatenate it 5 times to make it over the 20KB limit
         bytes memory tooLargeQuote = abi.encodePacked(mockQuote, mockQuote, mockQuote, mockQuote, mockQuote);
-        vm.expectRevert(abi.encodeWithSelector(AllowList.ByteSizeExceeded.selector, tooLargeQuote.length));
-        allowlist.registerTEEService(tooLargeQuote);
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.ByteSizeExceeded.selector, tooLargeQuote.length));
+        registry.registerTEEService(tooLargeQuote);
     }
 
     function test_reverts_when_sender_does_not_match_tee_address() public {
@@ -198,8 +200,10 @@ contract AllowListTest is Test {
         address differentAddress = address(0x1234);
         vm.prank(differentAddress);
         vm.expectRevert(
-            abi.encodeWithSelector(AllowList.SenderMustMatchTEEAddress.selector, differentAddress, expectedAddress)
+            abi.encodeWithSelector(
+                FlashtestationRegistry.SenderMustMatchTEEAddress.selector, differentAddress, expectedAddress
+            )
         );
-        allowlist.registerTEEService(mockQuote);
+        registry.registerTEEService(mockQuote);
     }
 }

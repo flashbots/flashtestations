@@ -13,11 +13,11 @@ struct RegisteredTEE {
 }
 
 /**
- * @title AllowList
+ * @title FlashtestationRegistry
  * @dev A contract for managing trusted execution environment (TEE) identities and configurations
  * using Automata's Intel DCAP attestation
  */
-contract AllowList {
+contract FlashtestationRegistry {
     // Constants
 
     // Maximum size for byte arrays to prevent DoS attacks
@@ -28,7 +28,7 @@ contract AllowList {
     // Storage Variables
 
     // The address of the Automata DCAP Attestation contract, which verifies TEE quotes.
-    // This is deployed by Automata, and once set on the AllowList, it cannot be changed
+    // This is deployed by Automata, and once set on the FlashtestationRegistry, it cannot be changed
     IAttestation public attestationContract;
 
     // Tracks the TEE-controlled address that registered a particular WorkloadId and attestation quote.
@@ -65,7 +65,7 @@ contract AllowList {
     }
 
     /**
-     * @notice Registers a TEE workload with a specific TEE-controlled address in the AllowList
+     * @notice Registers a TEE workload with a specific TEE-controlled address in the FlashtestationRegistry
      * @notice The TEE must be registered with a quote whose validity is verified by the attestationContract
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
@@ -88,8 +88,8 @@ contract AllowList {
 
         // we must ensure the TEE-controlled address is the same as the one calling the function
         // otherwise we have no proof that the TEE that generated this quote intends to register
-        // with the AllowList. This protects against a malicious TEE that generates a quote for a
-        // different address, and then calls this function to register itself with the AllowList
+        // with the FlashtestationRegistry. This protects against a malicious TEE that generates a quote for a
+        // different address, and then calls this function to register itself with the FlashtestationRegistry
         if (teeAddress != msg.sender) {
             revert SenderMustMatchTEEAddress(msg.sender, teeAddress);
         }
@@ -97,20 +97,20 @@ contract AllowList {
         // extract the workloadId from the quote
         WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
 
-        // Register the address in the allowlist with the raw quote for future quote re-verification
+        // Register the address in the registry with the raw quote for future quote re-verification
         bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote);
 
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, previouslyRegistered);
     }
 
     /**
-     * @notice Adds a TEE to the allowlist
+     * @notice Adds a TEE to the registry
      * @dev It's possible that a TEE has already registered with this address, but with a different workloadId.
      * This is expected if the TEE gets restarted or upgraded and generates a new workloadId.
      * It's also possible that the address and workloadId are the same, but the quote
      * is different. This is expected if Intel releases a new set of DCAP Endorsements (i.e.
      * a new TCB), in which case the quotes the TEE generates will be different.
-     * In both cases, we need to update the allowlist with the new quote.
+     * In both cases, we need to update the registry with the new quote.
      * @param workloadId The workloadId of the TEE
      * @param teeAddress The TEE-controlled address of the TEE
      * @param rawQuote The raw quote from the TEE device

@@ -15,30 +15,23 @@ Its first use case will be for proving that blocks on the Unichain L2 were built
 
 ## System Flows
 
-1. Initialize Governance values
-    
-    a. Governance (e.g. UNI DAO) is the only address than can register and de-register TEE devices
-    
-    b. Governance is the only address that can wipe the Registry (this exists only as a nuclear option to protect against system compromise)
 1. Registering a TEE Device (also referred to as a block builder)
     
-    a. Should only be callable by governance
+    a. Should only be callable from a TEE-controlled address
     
     b. Verify TEE Quote
     
-    c. extract and store TEE public key
+    c. extract and store TEE address and workload info
     
     d. set liveness (we want a way to indicate that a TEE device has not been active for a long period of time, and for that we use liveness)
     
-    e. Mark TEE device as "active"
 1. Verify Flashtestation transaction
     
     a. Check signature of transactions against registry of live builder keys
     
     b. update TEE device liveness
+
 1. Deregistering a TEE Device
-    
-    a. Should only be callable by governance
     
     b. Mark TEE device as "retired"
 
@@ -46,7 +39,7 @@ Its first use case will be for proving that blocks on the Unichain L2 were built
 
 This will perform a simple test to see if onchain verification of a tdx attestation works
 
-`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/AllowList.s.sol:AllowListScript`
+`forge script --chain 11155111 --rpc-url $ETHEREUM_SEPOLIA_RPC_URL script/FlashtestationRegistry.s.sol:FlashtestationRegistryScript`
 
 ## TODOs
 

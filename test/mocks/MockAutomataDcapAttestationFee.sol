@@ -8,7 +8,7 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
  * @dev A mock implementation of the AutomataDcapAttestationFee contract for testing
  * @dev This mock allows us to control the output of the verifyAndAttestOnChain function,
  *      and skip dealing with the vast complexity of Automata's DCAP Attestation contract
- * @dev This is useful for testing the AllowList contract with different quote and output values
+ * @dev This is useful for testing the FlashtestationRegistry contract with different quote and output values
  *      without having to deploy the AutomataDcapAttestationFee contract
  */
 contract MockAutomataDcapAttestationFee {
