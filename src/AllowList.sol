@@ -45,6 +45,7 @@ contract AllowList {
     error InvalidQuote(bytes output);
     error ByteSizeExceeded(uint256 size);
     error TEEServiceAlreadyRegistered(address teeAddress, WorkloadId workloadId);
+    error SenderMustMatchTEEAddress(address sender, address teeAddress);
 
     /**
      * Constructor to set the the Automata DCAP Attestation contract, which verifies TEE quotes
@@ -84,6 +85,14 @@ contract AllowList {
 
         // extract the ethereum public key from the quote
         address teeAddress = QuoteParser.extractEthereumAddress(td10ReportBodyStruct);
+
+        // we must ensure the TEE-controlled address is the same as the one calling the function
+        // otherwise we have no proof that the TEE that generated this quote intends to register
+        // with the AllowList. This protects against a malicious TEE that generates a quote for a
+        // different address, and then calls this function to register itself with the AllowList
+        if (teeAddress != msg.sender) {
+            revert SenderMustMatchTEEAddress(msg.sender, teeAddress);
+        }
 
         // extract the workloadId from the quote
         WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);

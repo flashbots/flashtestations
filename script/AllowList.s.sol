@@ -21,7 +21,14 @@ contract AllowListScript is Script {
         allowlist = new AllowList(ETHEREUM_SEPOLIA_ATTESTATION_FEE_ADDRESS);
 
         // Test trying to register a TEE
-        bytes memory sampleQuote = vm.readFileBinary(string(abi.encodePacked("test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/", "quote2.bin")));
+        bytes memory sampleQuote = vm.readFileBinary(
+            string(
+                abi.encodePacked(
+                    "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/",
+                    "quote2.bin"
+                )
+            )
+        );
 
         allowlist.registerTEEService(sampleQuote);
 
