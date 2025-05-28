@@ -81,7 +81,7 @@ library QuoteParser {
         report.rtMr1 = rawReportBody.substring(376, 48);
         report.rtMr2 = rawReportBody.substring(424, 48);
         report.rtMr3 = rawReportBody.substring(472, 48);
-        report.reportData = rawReportBody.substring(520, 64);
+        report.reportData = rawReportBody.substring(520, ETHEREUM_PUBLIC_KEY_LENGTH);
     }
 
     /**

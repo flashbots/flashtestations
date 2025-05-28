@@ -62,6 +62,7 @@ contract AllowListTest is Test {
         uint64 expectedRegisteredAt = uint64(block.timestamp);
         vm.expectEmit(address(allowlist));
         emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        vm.prank(expectedAddress);
         allowlist.registerTEEService(mockQuote);
 
         (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
@@ -86,6 +87,7 @@ contract AllowListTest is Test {
 
         vm.expectEmit(address(allowlist));
         emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        vm.prank(expectedAddress);
         allowlist.registerTEEService(mockQuote);
 
         (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = allowlist.registeredTEEs(expectedAddress);
@@ -107,6 +109,7 @@ contract AllowListTest is Test {
         );
         vm.expectEmit(address(allowlist));
         emit AllowList.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote2, true);
+        vm.prank(expectedAddress);
         allowlist.registerTEEService(mockQuote2);
 
         (uint64 registeredAt2, WorkloadId workloadId2, bytes memory rawQuote2) =
@@ -136,11 +139,13 @@ contract AllowListTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
+        vm.prank(expectedAddress);
         allowlist.registerTEEService(mockQuote);
 
         vm.expectRevert(
             abi.encodeWithSelector(AllowList.TEEServiceAlreadyRegistered.selector, expectedAddress, expectedWorkloadId)
         );
+        vm.prank(expectedAddress);
         allowlist.registerTEEService(mockQuote);
     }
 
@@ -181,9 +186,20 @@ contract AllowListTest is Test {
         allowlist.registerTEEService(tooLargeQuote);
     }
 
-    function testFuzz_registerTEEService(bytes memory _quote) public {
-        /**
-         * TODO: fuzz things that are fuzzable *
-         */
+    function test_reverts_when_sender_does_not_match_tee_address() public {
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        // Call with a different address than the one in the quote
+        address differentAddress = address(0x1234);
+        vm.prank(differentAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(AllowList.SenderMustMatchTEEAddress.selector, differentAddress, expectedAddress)
+        );
+        allowlist.registerTEEService(mockQuote);
     }
 }
