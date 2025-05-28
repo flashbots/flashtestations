@@ -11,4 +11,4 @@ Each directory within `raw_tdx_quotes/` is named by the 64-byte hex uncompressed
 
 ### Helpers
 
-- `hex2bin.py`: a simple python script for writing string hex data (such as `0xdeadbeef`) in its binary form to a file. We use this to take the hex string of the serialized [Output](https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/types/CommonStruct.sol#L113) emitted by the `AttestationEntrypointBase.AttestationSubmitted` event, which you place in `quote_event.htx` non-0x-prefixed, and write it in to `output.bin`, so we can use it to mock return values in our tests for different TDX quotes
+- `hex2bin.py`: a simple python script for writing string hex data (such as `0xdeadbeef`) in its binary form to a file. We use this to take the hex string of the serialized [Output](https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/types/CommonStruct.sol#L113) emitted by the `AttestationEntrypointBase.AttestationSubmitted` event, which you place in `quote_event.hex` non-0x-prefixed, and write it in to `output.bin`, so we can use it to mock return values in our tests for different TDX quotes
