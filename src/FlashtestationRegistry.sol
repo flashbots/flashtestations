@@ -139,4 +139,17 @@ contract FlashtestationRegistry {
         registeredTEEs[teeAddress] =
             RegisteredTEE({registeredAt: uint64(block.timestamp), workloadId: workloadId, rawQuote: rawQuote});
     }
+
+    /**
+     * @notice Checks if a TEE is registered with a given workloadId
+     * @param workloadId The workloadId to check
+     * @param teeAddress The TEE-controlled address to check
+     * @return isValid Whether the TEE is registered with the given workloadId
+     * @dev isValidWorkload will only return true if a valid TEE quote containing
+     * teeAddress in its reportData field was previously registered with the FlashtestationRegistry
+     * using the registerTEEService function.
+     */
+    function isValidWorkload(WorkloadId workloadId, address teeAddress) public view returns (bool) {
+        return WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId);
+    }
 }
