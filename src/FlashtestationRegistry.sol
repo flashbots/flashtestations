@@ -7,7 +7,6 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
 
 // TEE identity and status tracking
 struct RegisteredTEE {
-    uint64 registeredAt; // The most recent timestamp that the TEE last registered with a valid quote
     WorkloadId workloadId; // The workloadID of the TEE device
     bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote re-verification
 }
@@ -130,14 +129,10 @@ contract FlashtestationRegistry {
             revert TEEServiceAlreadyRegistered(teeAddress, workloadId);
         }
 
-        // this is a nice-to-have that signals to the user that the TEE was previously registered,
-        // but it's not strictly necessary
-        if (registeredTEEs[teeAddress].registeredAt > 0) {
+        if (WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0) {
             previouslyRegistered = true;
         }
-
-        registeredTEEs[teeAddress] =
-            RegisteredTEE({registeredAt: uint64(block.timestamp), workloadId: workloadId, rawQuote: rawQuote});
+        registeredTEEs[teeAddress] = RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote});
     }
 
     /**

@@ -61,15 +61,13 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        uint64 expectedRegisteredAt = uint64(block.timestamp);
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
     }
@@ -85,16 +83,13 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        uint64 expectedRegisteredAt = uint64(block.timestamp);
-
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
 
@@ -114,10 +109,8 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (uint64 registeredAt2, WorkloadId workloadId2, bytes memory rawQuote2) =
-            registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId2, bytes memory rawQuote2) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
-        vm.assertEq(registeredAt2, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
