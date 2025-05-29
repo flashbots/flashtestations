@@ -41,6 +41,8 @@ contract FlashtestationRegistryTest is Test {
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
     });
 
+    WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
+
     function setUp() public {
         // deploy a fresh set of test contracts before each test
         attestationContract = new MockAutomataDcapAttestationFee();
@@ -59,15 +61,13 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        uint64 expectedRegisteredAt = uint64(block.timestamp);
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
     }
@@ -83,16 +83,13 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        uint64 expectedRegisteredAt = uint64(block.timestamp);
-
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (uint64 registeredAt, WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registeredAt, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
 
@@ -112,10 +109,8 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (uint64 registeredAt2, WorkloadId workloadId2, bytes memory rawQuote2) =
-            registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId2, bytes memory rawQuote2) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
-        vm.assertEq(registeredAt2, expectedRegisteredAt, "registeredAt mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
@@ -205,5 +200,48 @@ contract FlashtestationRegistryTest is Test {
             )
         );
         registry.registerTEEService(mockQuote);
+    }
+
+    function test_isValidWorkload_returns_true_for_valid_combination() public {
+        // First register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+        WorkloadId expectedWorkloadId = bf42Mock.workloadId;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        vm.prank(expectedAddress);
+        registry.registerTEEService(mockQuote);
+
+        // Now check that isValidWorkload returns true for this combination
+        bool isValid = registry.isValidWorkload(expectedWorkloadId, expectedAddress);
+        assertTrue(isValid, "isValidWorkload should return true for valid TEE/workloadId combination");
+    }
+
+    function test_isValidWorkload_returns_false_for_unregistered_tee() public view {
+        // Use an address that hasn't been registered
+        address unregisteredAddress = address(0xdead);
+
+        bool isValid = registry.isValidWorkload(wrongWorkloadId, unregisteredAddress);
+        assertFalse(isValid, "isValidWorkload should return false for unregistered TEE address");
+    }
+
+    function test_isValidWorkload_returns_false_for_wrong_workloadId() public {
+        // First register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        vm.prank(expectedAddress);
+        registry.registerTEEService(mockQuote);
+
+        // Now check with a different workloadId
+        bool isValid = registry.isValidWorkload(wrongWorkloadId, expectedAddress);
+        assertFalse(isValid, "isValidWorkload should return false for wrong workloadId");
     }
 }

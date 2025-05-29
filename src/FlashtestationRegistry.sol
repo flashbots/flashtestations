@@ -7,7 +7,6 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
 
 // TEE identity and status tracking
 struct RegisteredTEE {
-    uint64 registeredAt; // The most recent timestamp that the TEE last registered with a valid quote
     WorkloadId workloadId; // The workloadID of the TEE device
     bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote re-verification
 }
@@ -130,13 +129,22 @@ contract FlashtestationRegistry {
             revert TEEServiceAlreadyRegistered(teeAddress, workloadId);
         }
 
-        // this is a nice-to-have that signals to the user that the TEE was previously registered,
-        // but it's not strictly necessary
-        if (registeredTEEs[teeAddress].registeredAt > 0) {
+        if (WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0) {
             previouslyRegistered = true;
         }
+        registeredTEEs[teeAddress] = RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote});
+    }
 
-        registeredTEEs[teeAddress] =
-            RegisteredTEE({registeredAt: uint64(block.timestamp), workloadId: workloadId, rawQuote: rawQuote});
+    /**
+     * @notice Checks if a TEE is registered with a given workloadId
+     * @param workloadId The workloadId to check
+     * @param teeAddress The TEE-controlled address to check
+     * @return isValid Whether the TEE is registered with the given workloadId
+     * @dev isValidWorkload will only return true if a valid TEE quote containing
+     * teeAddress in its reportData field was previously registered with the FlashtestationRegistry
+     * using the registerTEEService function.
+     */
+    function isValidWorkload(WorkloadId workloadId, address teeAddress) public view returns (bool) {
+        return WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId);
     }
 }
