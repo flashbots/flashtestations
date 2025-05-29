@@ -66,10 +66,10 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid) = registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
     }
 
     // test that we can register the same TEEService again with a different quote
@@ -88,10 +88,10 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid) = registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
 
         // now register the same TEEService again with a different quote
 
@@ -109,8 +109,8 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (WorkloadId workloadId2, bytes memory rawQuote2) = registry.registeredTEEs(expectedAddress);
-        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        (WorkloadId workloadId2, bytes memory rawQuote2, bool isValid2) = registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
