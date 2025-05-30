@@ -1,5 +1,6 @@
 forge-std/=lib/forge-std/src/
 solmate/=lib/solmate/
+@openzeppelin/=lib/openzeppelin-contracts
 automata-dcap-attestation/=lib/automata-dcap-attestation/evm/
 @automata-network/on-chain-pccs/=lib/automata-dcap-attestation/evm/lib/automata-on-chain-pccs/src/
 solady/=lib/automata-dcap-attestation/evm/lib/automata-on-chain-pccs/lib/solady/src/
