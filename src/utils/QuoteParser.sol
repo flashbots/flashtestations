@@ -94,10 +94,16 @@ library QuoteParser {
      * @return address TEE-controlled address
      */
     function extractEthereumAddress(TD10ReportBody memory td10ReportBody) internal pure returns (address) {
+        bytes memory publicKey = extractPublicKey(td10ReportBody);
+
+        return address(uint160(uint256(keccak256(publicKey))));
+    }
+
+    function extractPublicKey(TD10ReportBody memory td10ReportBody) internal pure returns (bytes memory) {
         if (td10ReportBody.reportData.length != ETHEREUM_PUBLIC_KEY_LENGTH) {
             revert InvalidReportDataLength(td10ReportBody.reportData.length);
         }
-        return address(uint160(uint256(keccak256(td10ReportBody.reportData.substring(0, 64)))));
+        return td10ReportBody.reportData.substring(0, 64);
     }
 
     /**
