@@ -10,6 +10,7 @@ struct RegisteredTEE {
     WorkloadId workloadId; // The workloadID of the TEE device
     bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote re-verification
     bool isValid; // true upon first registration, and false after a re-verification
+    bytes publicKey; // The 64-byte uncompressedpublic key of TEE-controlled address, used to encrypt messages to the TEE
 }
 
 /**
@@ -38,7 +39,9 @@ contract FlashtestationRegistry {
 
     // Events
 
-    event TEEServiceRegistered(address teeAddress, WorkloadId workloadId, bytes rawQuote, bool alreadyExists);
+    event TEEServiceRegistered(
+        address teeAddress, WorkloadId workloadId, bytes rawQuote, bytes publicKey, bool alreadyExists
+    );
     event TEEServiceInvalidated(address teeAddress);
 
     // Errors
@@ -88,8 +91,9 @@ contract FlashtestationRegistry {
         // the ethereum public key and compute the workloadID
         TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
 
-        // extract the ethereum public key from the quote
-        address teeAddress = QuoteParser.extractEthereumAddress(td10ReportBodyStruct);
+        // extract the ethereum public key and addressfrom the quote
+        bytes memory publicKey = QuoteParser.extractPublicKey(td10ReportBodyStruct);
+        address teeAddress = address(uint160(uint256(keccak256(publicKey))));
 
         // we must ensure the TEE-controlled address is the same as the one calling the function
         // otherwise we have no proof that the TEE that generated this quote intends to register
@@ -103,9 +107,9 @@ contract FlashtestationRegistry {
         WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
 
         // Register the address in the registry with the raw quote for future quote re-verification
-        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote);
+        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote, publicKey);
 
-        emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, previouslyRegistered);
+        emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
     /**
@@ -121,13 +125,15 @@ contract FlashtestationRegistry {
      * @param rawQuote The raw quote from the TEE device
      * @return previouslyRegistered Whether the TEE was previously registered
      */
-    function addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote)
+    function addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote, bytes memory publicKey)
         internal
         returns (bool previouslyRegistered)
     {
         // if a user is trying to add the same address, workloadId, and quote, this is a no-op
         // and we should revert to signal that the user may be making a mistake (why would
-        // they be trying to add the same TEE twice?)
+        // they be trying to add the same TEE twice?). We do not need to check the public key,
+        // because the address has a cryptographically-ensured 1-to-1 relationship with the
+        // public key, so checking it would be redundant
         if (
             WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId)
                 && keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)
@@ -138,7 +144,8 @@ contract FlashtestationRegistry {
         if (WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0) {
             previouslyRegistered = true;
         }
-        registeredTEEs[teeAddress] = RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true});
+        registeredTEEs[teeAddress] =
+            RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
     }
 
     /**
