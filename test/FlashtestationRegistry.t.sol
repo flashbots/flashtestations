@@ -14,6 +14,7 @@ struct MockQuote {
     bytes output;
     bytes quote;
     address teeAddress;
+    bytes publicKey;
     WorkloadId workloadId;
 }
 
@@ -27,6 +28,7 @@ contract FlashtestationRegistryTest is Test {
         quote: vm.readFileBinary(
             "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
         ),
+        publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
     });
@@ -37,6 +39,7 @@ contract FlashtestationRegistryTest is Test {
         quote: vm.readFileBinary(
             "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote.bin"
         ),
+        publicKey: hex"d204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6",
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
     });
@@ -62,14 +65,18 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setOutput(mockOutput);
 
         vm.expectEmit(address(registry));
-        emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        emit FlashtestationRegistry.TEEServiceRegistered(
+            expectedAddress, expectedWorkloadId, mockQuote, bf42Mock.publicKey, false
+        );
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid, bytes memory publicKey) =
+            registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
+        vm.assertEq(publicKey, bf42Mock.publicKey, "Public key mismatch");
     }
 
     // test that we can register the same TEEService again with a different quote
@@ -84,14 +91,17 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setOutput(mockOutput);
 
         vm.expectEmit(address(registry));
-        emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote, false);
+        emit FlashtestationRegistry.TEEServiceRegistered(
+            expectedAddress, expectedWorkloadId, mockQuote, d204Mock.publicKey, false
+        );
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid, bytes memory publicKey) =
+            registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
 
         // now register the same TEEService again with a different quote
 
@@ -105,12 +115,15 @@ contract FlashtestationRegistryTest is Test {
             "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote2.bin"
         );
         vm.expectEmit(address(registry));
-        emit FlashtestationRegistry.TEEServiceRegistered(expectedAddress, expectedWorkloadId, mockQuote2, true);
+        emit FlashtestationRegistry.TEEServiceRegistered(
+            expectedAddress, expectedWorkloadId, mockQuote2, d204Mock.publicKey, true
+        );
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (WorkloadId workloadId2, bytes memory rawQuote2) = registry.registeredTEEs(expectedAddress);
-        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        (WorkloadId workloadId2, bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) =
+            registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
@@ -243,5 +256,67 @@ contract FlashtestationRegistryTest is Test {
         // Now check with a different workloadId
         bool isValid = registry.isValidWorkload(wrongWorkloadId, expectedAddress);
         assertFalse(isValid, "isValidWorkload should return false for wrong workloadId");
+    }
+
+    function test_reverifyAttestation_reverts_if_not_registered() public {
+        address unregisteredAddress = address(0xdeadbeef);
+        vm.expectRevert(
+            abi.encodeWithSelector(FlashtestationRegistry.TEEServiceNotRegistered.selector, unregisteredAddress)
+        );
+        registry.reverifyAttestation(unregisteredAddress);
+    }
+
+    function test_reverifyAttestation_reverts_if_already_invalid() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+
+        // Now, reverify with success==false (should invalidate)
+        attestationContract.setSuccess(false);
+        vm.prank(address(0x123));
+        registry.reverifyAttestation(teeAddress);
+
+        // Now, calling again should revert with TEEServiceAlreadyInvalid
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEServiceAlreadyInvalid.selector, teeAddress));
+        registry.reverifyAttestation(teeAddress);
+    }
+
+    function test_reverifyAttestation_reverts_if_still_valid() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+        // Now, reverify with success==true (still valid)
+        attestationContract.setSuccess(true);
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEIsStillValid.selector, teeAddress));
+        registry.reverifyAttestation(teeAddress);
+    }
+
+    function test_reverifyAttestation_invalidates_and_emits_event() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+        // Now, reverify with success==false (should invalidate)
+        attestationContract.setSuccess(false);
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceInvalidated(teeAddress);
+        registry.reverifyAttestation(teeAddress);
+        // Check isValid is now false
+        (,, bool isValid,) = registry.registeredTEEs(teeAddress);
+        assertFalse(isValid, "TEE should be invalid after reverify");
     }
 }

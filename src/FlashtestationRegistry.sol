@@ -9,6 +9,8 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
 struct RegisteredTEE {
     WorkloadId workloadId; // The workloadID of the TEE device
     bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote re-verification
+    bool isValid; // true upon first registration, and false after a re-verification
+    bytes publicKey; // The 64-byte uncompressedpublic key of TEE-controlled address, used to encrypt messages to the TEE
 }
 
 /**
@@ -37,7 +39,10 @@ contract FlashtestationRegistry {
 
     // Events
 
-    event TEEServiceRegistered(address teeAddress, WorkloadId workloadId, bytes rawQuote, bool alreadyExists);
+    event TEEServiceRegistered(
+        address teeAddress, WorkloadId workloadId, bytes rawQuote, bytes publicKey, bool alreadyExists
+    );
+    event TEEServiceInvalidated(address teeAddress);
 
     // Errors
 
@@ -45,6 +50,9 @@ contract FlashtestationRegistry {
     error ByteSizeExceeded(uint256 size);
     error TEEServiceAlreadyRegistered(address teeAddress, WorkloadId workloadId);
     error SenderMustMatchTEEAddress(address sender, address teeAddress);
+    error TEEServiceNotRegistered(address teeAddress);
+    error TEEServiceAlreadyInvalid(address teeAddress);
+    error TEEIsStillValid(address teeAddress);
 
     /**
      * Constructor to set the the Automata DCAP Attestation contract, which verifies TEE quotes
@@ -67,6 +75,7 @@ contract FlashtestationRegistry {
      * @notice Registers a TEE workload with a specific TEE-controlled address in the FlashtestationRegistry
      * @notice The TEE must be registered with a quote whose validity is verified by the attestationContract
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
+     * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      */
     function registerTEEService(bytes calldata rawQuote) external limitBytesSize(rawQuote) {
@@ -82,8 +91,9 @@ contract FlashtestationRegistry {
         // the ethereum public key and compute the workloadID
         TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
 
-        // extract the ethereum public key from the quote
-        address teeAddress = QuoteParser.extractEthereumAddress(td10ReportBodyStruct);
+        // extract the ethereum public key and addressfrom the quote
+        bytes memory publicKey = QuoteParser.extractPublicKey(td10ReportBodyStruct);
+        address teeAddress = address(uint160(uint256(keccak256(publicKey))));
 
         // we must ensure the TEE-controlled address is the same as the one calling the function
         // otherwise we have no proof that the TEE that generated this quote intends to register
@@ -97,9 +107,9 @@ contract FlashtestationRegistry {
         WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
 
         // Register the address in the registry with the raw quote for future quote re-verification
-        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote);
+        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote, publicKey);
 
-        emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, previouslyRegistered);
+        emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
     /**
@@ -115,13 +125,15 @@ contract FlashtestationRegistry {
      * @param rawQuote The raw quote from the TEE device
      * @return previouslyRegistered Whether the TEE was previously registered
      */
-    function addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote)
+    function addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote, bytes memory publicKey)
         internal
         returns (bool previouslyRegistered)
     {
         // if a user is trying to add the same address, workloadId, and quote, this is a no-op
         // and we should revert to signal that the user may be making a mistake (why would
-        // they be trying to add the same TEE twice?)
+        // they be trying to add the same TEE twice?). We do not need to check the public key,
+        // because the address has a cryptographically-ensured 1-to-1 relationship with the
+        // public key, so checking it would be redundant
         if (
             WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId)
                 && keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)
@@ -132,7 +144,8 @@ contract FlashtestationRegistry {
         if (WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0) {
             previouslyRegistered = true;
         }
-        registeredTEEs[teeAddress] = RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote});
+        registeredTEEs[teeAddress] =
+            RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
     }
 
     /**
@@ -146,5 +159,52 @@ contract FlashtestationRegistry {
      */
     function isValidWorkload(WorkloadId workloadId, address teeAddress) public view returns (bool) {
         return WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId);
+    }
+
+    /**
+     * @notice Re-verifies the attestation of a TEE
+     * @param teeAddress The TEE-controlled address to re-verify
+     * @dev This is a costly operation (5 million gas) and should be used sparingly.
+     * @dev Will always revert except if the attestation is no invalid. This is to prevent
+     * a user needlessly calling this function and for a no-op to occur
+     * @dev This function exists to handle an important security requirement: occasionally Intel
+     * will release a new set of DCAP Endorsements for a particular TEE setup (for instance if a
+     * TDX vulnerability was discovered), which invalidates all prior quotes generated by that TEE.
+     * By invalidates we mean that the outputs generated by the TEE-controlled address associated
+     * with these invalid quotes are no longer secure and cannot be relied upon. This fact needs to be
+     * reflected onchain, so that any upstream contracts that try to call `isValidWorkload` will
+     * correctly return `false` for the TEE-controlled addresses associated with these invalid quotes.
+     * This is a security requirement to ensure that no downstream contracts can be exploited by
+     * a malicious TEE that has been compromised
+     * @dev Note: this function is callable by anyone, so that offchain monitoring services can
+     * quickly mark TEEs as invalid
+     */
+    function reverifyAttestation(address teeAddress) external {
+        // check to make sure it even makes sense to re-verify the TEE-controlled address
+        // if the TEE-controlled address is not registered with the FlashtestationRegistry,
+        // it doesn't make sense to re-verify the attestation
+        RegisteredTEE memory registeredTEE = registeredTEEs[teeAddress];
+        if (WorkloadId.unwrap(registeredTEE.workloadId) == 0) {
+            revert TEEServiceNotRegistered(teeAddress);
+        }
+
+        if (!registeredTEE.isValid) {
+            revert TEEServiceAlreadyInvalid(teeAddress);
+        }
+
+        // now we re-verify the attestation, and invalidate the TEE if it's no longer valid.
+        // This will only happen if the DCAP Endorsements associated with the TEE's quote
+        // have been updated
+        (bool success,) = attestationContract.verifyAndAttestOnChain(registeredTEE.rawQuote);
+        if (success) {
+            // if the attestation is still valid, then this function call is a no-op except for
+            // wasting the caller's gas. So we revert here to signal that the TEE is still valid.
+            // Offchain users who want to monitor for potential invalid TEEs can do so by calling
+            // this function and checking for the `TEEIsStillValid` error
+            revert TEEIsStillValid(teeAddress);
+        } else {
+            registeredTEEs[teeAddress].isValid = false;
+            emit TEEServiceInvalidated(teeAddress);
+        }
     }
 }
