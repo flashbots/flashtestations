@@ -66,10 +66,10 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid) = registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
     }
 
     // test that we can register the same TEEService again with a different quote
@@ -88,10 +88,10 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (WorkloadId workloadId, bytes memory rawQuote) = registry.registeredTEEs(expectedAddress);
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid) = registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
 
         // now register the same TEEService again with a different quote
 
@@ -109,8 +109,8 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (WorkloadId workloadId2, bytes memory rawQuote2) = registry.registeredTEEs(expectedAddress);
-        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        (WorkloadId workloadId2, bytes memory rawQuote2, bool isValid2) = registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
@@ -243,5 +243,67 @@ contract FlashtestationRegistryTest is Test {
         // Now check with a different workloadId
         bool isValid = registry.isValidWorkload(wrongWorkloadId, expectedAddress);
         assertFalse(isValid, "isValidWorkload should return false for wrong workloadId");
+    }
+
+    function test_invalidateAttestation_reverts_if_not_registered() public {
+        address unregisteredAddress = address(0xdeadbeef);
+        vm.expectRevert(
+            abi.encodeWithSelector(FlashtestationRegistry.TEEServiceNotRegistered.selector, unregisteredAddress)
+        );
+        registry.invalidateAttestation(unregisteredAddress);
+    }
+
+    function test_invalidateAttestation_reverts_if_already_invalid() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+
+        // Now, invalidate with success==false (should invalidate)
+        attestationContract.setSuccess(false);
+        vm.prank(address(0x123));
+        registry.invalidateAttestation(teeAddress);
+
+        // Now, calling again should revert with TEEServiceAlreadyInvalid
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEServiceAlreadyInvalid.selector, teeAddress));
+        registry.invalidateAttestation(teeAddress);
+    }
+
+    function test_invalidateAttestation_reverts_if_still_valid() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+        // Now, invalidate with success==true (still valid)
+        attestationContract.setSuccess(true);
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEIsStillValid.selector, teeAddress));
+        registry.invalidateAttestation(teeAddress);
+    }
+
+    function test_invalidateAttestation_invalidates_and_emits_event() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+        // Now, invalidate with success==false (should invalidate)
+        attestationContract.setSuccess(false);
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceInvalidated(teeAddress);
+        registry.invalidateAttestation(teeAddress);
+        // Check isValid is now false
+        (,, bool isValid) = registry.registeredTEEs(teeAddress);
+        assertFalse(isValid, "TEE should be invalid after invalidate");
     }
 }
