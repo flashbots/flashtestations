@@ -91,7 +91,7 @@ contract FlashtestationRegistry {
         // the ethereum public key and compute the workloadID
         TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
 
-        // extract the ethereum public key and addressfrom the quote
+        // extract the data we'll need to register the TEE in the registry
         bytes memory publicKey = QuoteParser.extractPublicKey(td10ReportBodyStruct);
         address teeAddress = address(uint160(uint256(keccak256(publicKey))));
 
