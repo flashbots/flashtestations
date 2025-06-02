@@ -245,15 +245,15 @@ contract FlashtestationRegistryTest is Test {
         assertFalse(isValid, "isValidWorkload should return false for wrong workloadId");
     }
 
-    function test_reverifyAttestation_reverts_if_not_registered() public {
+    function test_invalidateAttestation_reverts_if_not_registered() public {
         address unregisteredAddress = address(0xdeadbeef);
         vm.expectRevert(
             abi.encodeWithSelector(FlashtestationRegistry.TEEServiceNotRegistered.selector, unregisteredAddress)
         );
-        registry.reverifyAttestation(unregisteredAddress);
+        registry.invalidateAttestation(unregisteredAddress);
     }
 
-    function test_reverifyAttestation_reverts_if_already_invalid() public {
+    function test_invalidateAttestation_reverts_if_already_invalid() public {
         // Register a valid TEE
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
@@ -263,17 +263,17 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
 
-        // Now, reverify with success==false (should invalidate)
+        // Now, invalidate with success==false (should invalidate)
         attestationContract.setSuccess(false);
         vm.prank(address(0x123));
-        registry.reverifyAttestation(teeAddress);
+        registry.invalidateAttestation(teeAddress);
 
         // Now, calling again should revert with TEEServiceAlreadyInvalid
         vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEServiceAlreadyInvalid.selector, teeAddress));
-        registry.reverifyAttestation(teeAddress);
+        registry.invalidateAttestation(teeAddress);
     }
 
-    function test_reverifyAttestation_reverts_if_still_valid() public {
+    function test_invalidateAttestation_reverts_if_still_valid() public {
         // Register a valid TEE
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
@@ -282,13 +282,13 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setOutput(mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
-        // Now, reverify with success==true (still valid)
+        // Now, invalidate with success==true (still valid)
         attestationContract.setSuccess(true);
         vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEIsStillValid.selector, teeAddress));
-        registry.reverifyAttestation(teeAddress);
+        registry.invalidateAttestation(teeAddress);
     }
 
-    function test_reverifyAttestation_invalidates_and_emits_event() public {
+    function test_invalidateAttestation_invalidates_and_emits_event() public {
         // Register a valid TEE
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
@@ -297,13 +297,13 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setOutput(mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
-        // Now, reverify with success==false (should invalidate)
+        // Now, invalidate with success==false (should invalidate)
         attestationContract.setSuccess(false);
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceInvalidated(teeAddress);
-        registry.reverifyAttestation(teeAddress);
+        registry.invalidateAttestation(teeAddress);
         // Check isValid is now false
         (,, bool isValid) = registry.registeredTEEs(teeAddress);
-        assertFalse(isValid, "TEE should be invalid after reverify");
+        assertFalse(isValid, "TEE should be invalid after invalidate");
     }
 }
