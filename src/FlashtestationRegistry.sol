@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {IAttestation} from "./interfaces/IAttestation.sol";
 import {QuoteParser, WorkloadId} from "./utils/QuoteParser.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+import {TD_REPORT10_LENGTH, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
 // TEE identity and status tracking
 struct RegisteredTEE {
@@ -207,5 +208,16 @@ contract FlashtestationRegistry {
             registeredTEEs[teeAddress].isValid = false;
             emit TEEServiceInvalidated(teeAddress);
         }
+    }
+
+    /**
+     * @notice Returns the TD10ReportBody for the quote used to register a given TEE-controlled address
+     * @param teeAddress The TEE-controlled address to get the TD10ReportBody for
+     * @return reportBody The TD10ReportBody for the given TEE-controlled address
+     * @dev this is useful for when both onchain and offchain users want more
+     * information about the registered TEE than just the workloadId
+     */
+    function getReportBody(address teeAddress) public view returns (TD10ReportBody memory) {
+        return QuoteParser.parseV4Quote(registeredTEEs[teeAddress].rawQuote);
     }
 }

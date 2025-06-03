@@ -6,8 +6,6 @@ import "solmate/src/auth/Owned.sol";
 import {WorkloadId} from "./utils/QuoteParser.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 
-type PolicyId is bytes32;
-
 /**
  * @title BlockBuilderPolicy
  * @notice A reference implementation of a policy contract for the FlashtestationRegistry
@@ -23,8 +21,8 @@ contract BlockBuilderPolicy is Owned {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // The set of workloadIds that are allowed under this policy
-    // This is only updateable by governance (i.e. the owner) of the Policy contract
-    // Adding, and removing a workload is O(1)
+    // This is only updateable by governance (i.e. the owner) of the Policy contract.
+    // Adding, and removing a workload is O(1).
     // NOTE: The critical `isAllowedPolicy` function is O(n) where n is the number of workloadIds in the policy
     // This is because it needs to iterate over all workloadIds in the policy to check if the TEE is allowed
     // This is not a problem for small policies, but it is a problem for large policies.

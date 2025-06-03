@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 import {BytesUtils} from "@automata-network/on-chain-pccs/utils/BytesUtils.sol";
-import {TD_REPORT10_LENGTH, TDX_TEE} from "automata-dcap-attestation/contracts/types/Constants.sol";
+import {TD_REPORT10_LENGTH, TDX_TEE, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
 // User Defined Types
 
@@ -41,6 +41,7 @@ library QuoteParser {
     error InvalidTEEType(bytes4 teeType);
     error InvalidTEEVersion(uint16 version);
     error InvalidReportDataLength(uint256 length);
+    error InvalidQuoteLength(uint256 length);
 
     /**
      * @notice Parses the serialized output of the V4QuoteVerifier into a TD10ReportBody which contains
@@ -51,22 +52,39 @@ library QuoteParser {
      * @dev Taken from Automata's DCAP Attestation repo:
      * https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/verifiers/V4QuoteVerifier.sol#L309
      */
-    function parseV4VerifierOutput(bytes memory serializedOutput)
-        internal
-        pure
-        returns (TD10ReportBody memory report)
-    {
+    function parseV4VerifierOutput(bytes memory serializedOutput) internal pure returns (TD10ReportBody memory) {
         // check that now-verified quote is version 4 and of type TDX, otherwise
         // in the next step the output will not have the byte length we expect
         // and we'll fail to parse it, returning a unhelpful error message
         checkTEEVersion(serializedOutput);
         checkTEEType(serializedOutput);
 
-        bytes memory rawReportBody = serializedOutput.substring(SERIALIZED_OUTPUT_OFFSET, TD_REPORT10_LENGTH);
+        require(
+            serializedOutput.length >= SERIALIZED_OUTPUT_OFFSET + TD_REPORT10_LENGTH,
+            InvalidQuoteLength(serializedOutput.length)
+        );
 
-        // note: because of the call to .substring above, we know that the length of rawReportBody is
-        // exactly TD_REPORT10_LENGTH, so we can safely call substring without checking the length
+        return parseRawReportBody(serializedOutput.substring(SERIALIZED_OUTPUT_OFFSET, TD_REPORT10_LENGTH));
+    }
 
+    /**
+     * @notice Parses a V4 TDX quote into a TD10ReportBody
+     * @param rawV4Quote The raw V4 TDX quote
+     * @return report The parsed TD10ReportBody
+     */
+    function parseV4Quote(bytes memory rawV4Quote) internal pure returns (TD10ReportBody memory) {
+        require(rawV4Quote.length >= HEADER_LENGTH + TD_REPORT10_LENGTH, InvalidQuoteLength(rawV4Quote.length));
+        return parseRawReportBody(rawV4Quote.substring(HEADER_LENGTH, TD_REPORT10_LENGTH));
+    }
+
+    /**
+     * @notice Parses a raw report body into a TD10ReportBody
+     * @param rawReportBody The raw report body
+     * @return report The parsed TD10ReportBody
+     * @dev Taken from Automata's DCAP Attestation repo:
+     * https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/verifiers/V4QuoteVerifier.sol#L309
+     */
+    function parseRawReportBody(bytes memory rawReportBody) internal pure returns (TD10ReportBody memory report) {
         report.teeTcbSvn = bytes16(rawReportBody.substring(0, 16));
         report.mrSeam = rawReportBody.substring(16, 48);
         report.mrsignerSeam = rawReportBody.substring(64, 48);

@@ -7,6 +7,7 @@ import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
 import {Helper} from "./helpers/Helper.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+import {TD_REPORT10_LENGTH, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 import {Output} from "automata-dcap-attestation/contracts/types/CommonStruct.sol";
 
 // a simple struct to store related mocked quote data for testing
@@ -318,5 +319,37 @@ contract FlashtestationRegistryTest is Test {
         // Check isValid is now false
         (,, bool isValid,) = registry.registeredTEEs(teeAddress);
         assertFalse(isValid, "TEE should be invalid after invalidate");
+    }
+
+    function test_parseV4Quote_parses_valid_quote() public {
+        // Register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address teeAddress = bf42Mock.teeAddress;
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+        vm.prank(teeAddress);
+        registry.registerTEEService(mockQuote);
+
+        // Should not revert and should return a TD10ReportBody
+        TD10ReportBody memory report = registry.getReportBody(teeAddress);
+
+        assertEq(report.reportData.length, 64, "reportData should be 64 bytes");
+        assertEq(report.reportData, bf42Mock.publicKey, "reportData should match the public key");
+    }
+
+    /// @dev we need the comment below because QuoteParser.parseV4Quote() is internal
+    /// and we want to test that it reverts with the correct error message
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_parseV4Quote_reverts_on_invalid_length() public {
+        // Use a quote of invalid length (e.g., one byte too short)
+        bytes memory validRawQuote = bf42Mock.quote;
+        bytes memory shortQuote = new bytes(TD_REPORT10_LENGTH + HEADER_LENGTH - 1);
+        for (uint256 i = 0; i < shortQuote.length; i++) {
+            shortQuote[i] = validRawQuote[i];
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(QuoteParser.InvalidQuoteLength.selector, shortQuote.length));
+        QuoteParser.parseV4Quote(shortQuote);
     }
 }
