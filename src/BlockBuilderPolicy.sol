@@ -5,6 +5,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import "solmate/src/auth/Owned.sol";
 import {WorkloadId} from "./utils/QuoteParser.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
 /**
  * @title BlockBuilderPolicy
@@ -56,6 +57,28 @@ contract BlockBuilderPolicy is Owned {
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
             WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
             if (FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// @notice An alternative implementation of isAllowedPolicy that verifies more than just
+    /// the workloadId's matching and if the attestation is still valid
+    /// @param teeAddress The TEE-controlled address
+    /// @param expectedTeeTcbSvn The expected teeTcbSvn of the TEE's attestation
+    /// @return allowed True if the TEE's attestation is part of the policy, is still valid, and
+    /// the teeTcbSvn matches the expected value
+    /// @dev This exists to show how different Policies can be implemented, based on what
+    /// properties of the TEE's attestation are important to verify.
+    function isAllowedPolicy2(address teeAddress, bytes16 expectedTeeTcbSvn) external view returns (bool allowed) {
+        for (uint256 i = 0; i < workloadIds.length(); ++i) {
+            WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
+            TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
+            if (
+                FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)
+                    && reportBody.teeTcbSvn == expectedTeeTcbSvn
+            ) {
                 return true;
             }
         }
