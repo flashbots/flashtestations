@@ -102,6 +102,7 @@ contract FlashtestationRegistryTest is Test {
             registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
+        vm.assertEq(publicKey, d204Mock.publicKey, "Public key mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
 
         // now register the same TEEService again with a different quote
@@ -127,6 +128,7 @@ contract FlashtestationRegistryTest is Test {
         vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        vm.assertEq(publicKey2, d204Mock.publicKey, "Public key mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
     }
 
