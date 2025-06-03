@@ -45,6 +45,7 @@ contract FlashtestationRegistryTest is Test {
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
     });
 
+    // this is some random workloadId that is not the same as the one in the mock quotes
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
 
     function setUp() public {
@@ -162,7 +163,7 @@ contract FlashtestationRegistryTest is Test {
         registry.registerTEEService(mockQuote);
     }
 
-    function test_reverts_with_invalid_quote_version_quote_parsing_helper() public {
+    function test_reverts_with_invalid_quote_version() public {
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
 
@@ -234,6 +235,32 @@ contract FlashtestationRegistryTest is Test {
         // Now check that isValidWorkload returns true for this combination
         bool isValid = registry.isValidWorkload(expectedWorkloadId, expectedAddress);
         assertTrue(isValid, "isValidWorkload should return true for valid TEE/workloadId combination");
+    }
+
+    function test_isValidWorkload_returns_false_for_invalid_tee() public {
+        // First register a valid TEE
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+        WorkloadId expectedWorkloadId = bf42Mock.workloadId;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        vm.prank(expectedAddress);
+        registry.registerTEEService(mockQuote);
+
+        // Now invalidate the TEE
+        attestationContract.setSuccess(false);
+        registry.invalidateAttestation(expectedAddress);
+
+        // Now check that isValidWorkload returns false for this combination
+        bool isValid = registry.isValidWorkload(expectedWorkloadId, expectedAddress);
+        assertFalse(isValid, "isValidWorkload should return false for invalid TEE");
+
+        // also make sure isValidWorkload returns false for a different workloadId
+        isValid = registry.isValidWorkload(wrongWorkloadId, expectedAddress);
+        assertFalse(isValid, "isValidWorkload should return false for invalid TEE");
     }
 
     function test_isValidWorkload_returns_false_for_unregistered_tee() public view {
