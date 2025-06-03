@@ -219,6 +219,8 @@ contract FlashtestationRegistry {
      * information about the registered TEE than just the workloadId
      */
     function getReportBody(address teeAddress) public view returns (TD10ReportBody memory) {
-        return QuoteParser.parseV4Quote(registeredTEEs[teeAddress].rawQuote);
+        bytes memory rawQuote = registeredTEEs[teeAddress].rawQuote;
+        require(rawQuote.length > 0, TEEServiceNotRegistered(teeAddress));
+        return QuoteParser.parseV4Quote(rawQuote);
     }
 }
