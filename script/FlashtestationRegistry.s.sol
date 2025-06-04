@@ -4,8 +4,6 @@ pragma solidity 0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
-import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
-import {TD_REPORT10_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
 // This is an example script that shows how to register a TEE service with the FlashtestationRegistry.
 // It is not meant to be used in production, but rather as a reference for how to use the FlashtestationRegistry.
