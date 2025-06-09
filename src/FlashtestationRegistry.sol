@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IAttestation} from "./interfaces/IAttestation.sol";
 import {QuoteParser, WorkloadId} from "./utils/QuoteParser.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
@@ -19,13 +22,11 @@ struct RegisteredTEE {
  * @dev A contract for managing trusted execution environment (TEE) identities and configurations
  * using Automata's Intel DCAP attestation
  */
-contract FlashtestationRegistry {
+contract FlashtestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // Constants
 
     // Maximum size for byte arrays to prevent DoS attacks
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024; // 20KB limit
-
-    // Structs
 
     // Storage Variables
 
@@ -56,12 +57,15 @@ contract FlashtestationRegistry {
     error TEEIsStillValid(address teeAddress);
 
     /**
-     * Constructor to set the the Automata DCAP Attestation contract, which verifies TEE quotes
+     * Intializer to set the the Automata DCAP Attestation contract, which verifies TEE quotes
      * @param _attestationContract The address of the attestation contract
      */
-    constructor(address _attestationContract) {
+    function initialize(address owner, address _attestationContract) external initializer {
+        __Ownable_init(owner);
         attestationContract = IAttestation(_attestationContract);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @dev Modifier to check if input bytes size is within limits

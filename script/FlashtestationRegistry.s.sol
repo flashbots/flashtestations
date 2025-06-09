@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
 
@@ -16,7 +17,14 @@ contract FlashtestationRegistryScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        registry = new FlashtestationRegistry(vm.envAddress("AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS"));
+        // this is the address that can upgrade the code of the deployed registry
+        address owner = vm.envAddress("FLASHTESTATION_REGISTRY_OWNER");
+        // this is the address of the Automata DCAP Attestation contract, which verifies TEE quotes
+        address attestationContract = vm.envAddress("AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS");
+        Upgrades.deployUUPSProxy(
+            "FlashtestationRegistry.sol",
+            abi.encodeCall(FlashtestationRegistry.initialize, (owner, attestationContract))
+        );
         vm.stopBroadcast();
     }
 }
