@@ -5,7 +5,7 @@ solc_version = '0.8.28'
 optimizer_runs = 44444444
 via_ir = true
 ffi = true
-fs_permissions = [{ access = "read", path = "foundry-out/" }, {access = "read", path = "test/raw_tdx_quotes/"}, {access = "read", path = "script/quote.raw/"}]
+fs_permissions = [{ access = "read", path = "foundry-out/" }, {access = "read", path = "test/raw_tdx_quotes/"}, {access = "read", path = "script/raw_tdx_quotes/"}]
 evm_version = "prague"
 gas_limit = "3000000000"
 fuzz_runs = 10_000
@@ -23,3 +23,9 @@ fuzz_runs = 100_000
 gas_limit=30_000_000
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}" }
+
+[rpc_endpoints]
+sepolia = "${UNICHAIN_SEPOLIA_RPC_URL}"
