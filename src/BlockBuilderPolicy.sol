@@ -33,27 +33,74 @@ contract BlockBuilderPolicy is Owned {
     EnumerableSet.Bytes32Set internal workloadIds;
 
     address public immutable registry;
+    uint8[] public SUPPORTED_VERSIONS = [1]; // only v1 supported for now, will change with a contract upgrade
 
     // Errors
 
     error WorkloadAlreadyInPolicy();
     error WorkloadNotInPolicy();
+    error UnauthorizedBlockBuilder(address caller);
+    error UnsupportedVersion(uint8 version);
 
     // Events
 
     event WorkloadAddedToPolicy(WorkloadId workloadId);
     event WorkloadRemovedFromPolicy(WorkloadId workloadId);
     event RegistrySet(address registry);
+    event BlockBuilderProofVerified(address caller, uint256 blockNumber, uint8 version, bytes32 blockContentHash);
 
     constructor(address _registry, address initialOwner) Owned(initialOwner) {
         registry = _registry;
         emit RegistrySet(_registry);
     }
 
+    /// @notice Verify a block builder proof
+    /// @param version The version of the flashtestation's protocol used to generate the block builder proof
+    /// @param blockContentHash The hash of the block content
+    /// @notice This function will only succeed if the caller is a registered TEE-controlled address from an attested TEE
+    /// and the TEE is running an approved block builder workload (see BlockBuilderPolicy.addWorkloadToPolicy)
+    /// @notice The blockContentHash is a keccak256 hash of a subset of the block header, as specified by the version.
+    /// See the [flashtestations spec](https://github.com/flashbots/rollup-boost/blob/77fc19f785eeeb9b4eb5fb08463bc556dec2c837/specs/flashtestations.md) for more details
+    function verifyBlockBuilderProof(uint8 version, bytes32 blockContentHash) external {
+        require(isSupportedVersion(version), UnsupportedVersion(version));
+        // Check if the caller is an authorized TEE block builder for our Policy
+        require(
+            isAllowedPolicy(msg.sender),
+            UnauthorizedBlockBuilder(msg.sender)
+        );
+        
+        // At this point, we know:
+        // 1. The caller is a registered TEE-controlled address from an attested TEE
+        // 2. The TEE is running an approved block builder workload (via policy)
+        
+        // Note: Due to EVM limitations (no retrospection), we cannot validate the blockContentHash
+        // onchain. We rely on the TEE workload to correctly compute this hash according to the
+        // specified version of the calculation method.
+        
+        emit BlockBuilderProofVerified(
+            msg.sender,
+            block.number,
+            version,
+            blockContentHash
+        );
+    }
+
+    /// @notice Helper function to check if a given version is supported by this Policy
+    /// @param version The version to check
+    /// @return True if the version is supported, false otherwise
+    function isSupportedVersion(uint8 version) public view returns (bool) {
+        for (uint256 i = 0; i < SUPPORTED_VERSIONS.length; ++i) {
+            if (SUPPORTED_VERSIONS[i] == version) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// @notice Check if an address is allowed under any workload in the policy
     /// @param teeAddress The TEE-controlled address
     /// @return allowed True if the TEE is valid for any workload in the policy
-    function isAllowedPolicy(address teeAddress) external view returns (bool allowed) {
+    function isAllowedPolicy(address teeAddress) public view returns (bool allowed) {
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
             WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
             if (FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)) {
