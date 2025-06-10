@@ -33,14 +33,17 @@ contract BlockBuilderPolicy is Owned {
     EnumerableSet.Bytes32Set internal workloadIds;
 
     address public immutable registry;
-    uint8[] public SUPPORTED_VERSIONS = [1]; // only v1 supported for now, will change with a contract upgrade
+
+    // only v1 supported for now, but this will change with a contract upgrade
+    // Note: we use an array instead of a mapping so that it can be instantiated as a constant
+    uint8[] public constant SUPPORTED_VERSIONS = [1];
 
     // Errors
 
     error WorkloadAlreadyInPolicy();
     error WorkloadNotInPolicy();
-    error UnauthorizedBlockBuilder(address caller);
-    error UnsupportedVersion(uint8 version);
+    error UnauthorizedBlockBuilder(address caller); // the teeAddress is not associated with a valid TEE workload
+    error UnsupportedVersion(uint8 version); // see SUPPORTED_VERSIONS for supported versions
 
     // Events
 
@@ -134,6 +137,10 @@ contract BlockBuilderPolicy is Owned {
 
     /// @notice Add a workload to a policy (governance only)
     /// @param workloadId The workload identifier
+    /// @notice Only the owner of this contract can add workloads to the policy
+    /// and it is the responsibility of the owner to ensure that the workload is valid
+    /// otherwise the address associated with this workload has full power to do anything
+    /// who's authorization is based on this policy
     function addWorkloadToPolicy(WorkloadId workloadId) external onlyOwner {
         bool added = workloadIds.add(WorkloadId.unwrap(workloadId));
         require(added, WorkloadAlreadyInPolicy());

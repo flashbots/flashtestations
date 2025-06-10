@@ -174,4 +174,37 @@ contract BlockBuilderPolicyTest is Test {
         vm.expectRevert();
         policy.getWorkload(0);
     }
+
+    function test_verifyBlockBuilderProof_fails_with_incorrect_version() public {
+        _registerTEE(bf42Mock);
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        
+        // Try with unsupported version 2
+        vm.prank(bf42Mock.teeAddress);
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, 2));
+        policy.verifyBlockBuilderProof(2, bytes32(0));
+    }
+
+    function test_verifyBlockBuilderProof_fails_with_unregistered_tee() public {
+        // Add workload to policy but don't register TEE
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        
+        vm.prank(bf42Mock.teeAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, bf42Mock.teeAddress)
+        );
+        policy.verifyBlockBuilderProof(1, bytes32(0));
+    }
+
+    function test_verifyBlockBuilderProof_succeeds_with_valid_tee_and_version() public {
+        _registerTEE(bf42Mock);
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        
+        bytes32 blockContentHash = bytes32(hex"1234");
+        vm.expectEmit(address(policy));
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(bf42Mock.teeAddress, 1, 1, blockContentHash);
+        
+        vm.prank(bf42Mock.teeAddress);
+        policy.verifyBlockBuilderProof(1, blockContentHash);
+    }
 }
