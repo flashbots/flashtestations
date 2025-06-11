@@ -47,6 +47,7 @@ contract BlockBuilderPolicyTest is Test {
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
     });
+    WorkloadId arbitraryWorkloadId = WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
 
     function setUp() public {
@@ -84,6 +85,12 @@ contract BlockBuilderPolicyTest is Test {
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
     }
 
+    function test_addWorkloadToPolicy_reverts_if_not_owner() public {
+        vm.prank(address(0x123));
+        vm.expectRevert("UNAUTHORIZED");
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+    }
+
     function test_removeWorkloadFromPolicy() public {
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
@@ -91,8 +98,26 @@ contract BlockBuilderPolicyTest is Test {
         assertEq(workloads.length, 0);
     }
 
+    function test_removeWorkloadFromPolicy_with_multiple_workloads_present() public {
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(arbitraryWorkloadId);
+        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        bytes32[] memory workloads = policy.getWorkloads();
+        assertEq(workloads.length, 1);
+        assertEq(workloads[0], WorkloadId.unwrap(arbitraryWorkloadId));
+        policy.removeWorkloadFromPolicy(arbitraryWorkloadId);
+        workloads = policy.getWorkloads();
+        assertEq(workloads.length, 0);
+    }
+
     function test_removeWorkloadFromPolicy_reverts_if_not_present() public {
         vm.expectRevert(BlockBuilderPolicy.WorkloadNotInPolicy.selector);
+        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+    }
+
+    function test_removeWorkloadFromPolicy_reverts_if_not_owner() public {
+        vm.prank(address(0x123));
+        vm.expectRevert("UNAUTHORIZED");
         policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
     }
 
@@ -126,6 +151,13 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_isAllowedPolicy_returns_false_for_wrong_workload() public {
         _registerTEE(bf42Mock);
+        policy.addWorkloadToPolicy(wrongWorkloadId);
+        bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        assertFalse(allowed);
+    }
+
+    function test_isAllowedPolicy_returns_false_for_invalid_tee_when_multiple_workloads_present() public {
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
         policy.addWorkloadToPolicy(wrongWorkloadId);
         bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
         assertFalse(allowed);
@@ -173,5 +205,38 @@ contract BlockBuilderPolicyTest is Test {
         // Should revert if index is out of bounds
         vm.expectRevert();
         policy.getWorkload(0);
+    }
+
+    function test_verifyBlockBuilderProof_fails_with_incorrect_version() public {
+        _registerTEE(bf42Mock);
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+
+        // Try with unsupported version 2
+        vm.prank(bf42Mock.teeAddress);
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, 2));
+        policy.verifyBlockBuilderProof(2, bytes32(0));
+    }
+
+    function test_verifyBlockBuilderProof_fails_with_unregistered_tee() public {
+        // Add workload to policy but don't register TEE
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+
+        vm.prank(bf42Mock.teeAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, bf42Mock.teeAddress)
+        );
+        policy.verifyBlockBuilderProof(1, bytes32(0));
+    }
+
+    function test_verifyBlockBuilderProof_succeeds_with_valid_tee_and_version() public {
+        _registerTEE(bf42Mock);
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+
+        bytes32 blockContentHash = bytes32(hex"1234");
+        vm.expectEmit(address(policy));
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(bf42Mock.teeAddress, 1, 1, blockContentHash);
+
+        vm.prank(bf42Mock.teeAddress);
+        policy.verifyBlockBuilderProof(1, blockContentHash);
     }
 }
