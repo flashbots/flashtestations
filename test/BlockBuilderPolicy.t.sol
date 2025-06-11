@@ -3,9 +3,11 @@ pragma solidity 0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry, RegisteredTEE} from "../src/FlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
+import {Upgrader} from "./helpers/Upgrader.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
 import {Helper} from "./helpers/Helper.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
@@ -14,6 +16,7 @@ contract BlockBuilderPolicyTest is Test {
     FlashtestationRegistry public registry;
     MockAutomataDcapAttestationFee public attestationContract;
     BlockBuilderPolicy public policy;
+    Upgrader public upgrader = new Upgrader();
     address public owner = address(this);
 
     // Use the same mock quote structure as FlashtestationRegistry.t.sol
@@ -52,12 +55,16 @@ contract BlockBuilderPolicyTest is Test {
 
     function setUp() public {
         attestationContract = new MockAutomataDcapAttestationFee();
-        address implementation = address(new FlashtestationRegistry());
-        address proxy = UnsafeUpgrades.deployUUPSProxy(
-            implementation, abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
+        address registryImplementation = address(new FlashtestationRegistry());
+        address registryProxy = UnsafeUpgrades.deployUUPSProxy(
+            registryImplementation, abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
-        registry = FlashtestationRegistry(proxy);
-        policy = new BlockBuilderPolicy(address(registry), owner);
+        registry = FlashtestationRegistry(registryProxy);
+        address policyImplementation = address(new BlockBuilderPolicy());
+        address policyProxy = UnsafeUpgrades.deployUUPSProxy(
+            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(registry)))
+        );
+        policy = BlockBuilderPolicy(policyProxy);
     }
 
     function _registerTEE(MockQuote memory mock) internal {
@@ -87,7 +94,7 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_addWorkloadToPolicy_reverts_if_not_owner() public {
         vm.prank(address(0x123));
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
     }
 
@@ -117,7 +124,7 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_removeWorkloadFromPolicy_reverts_if_not_owner() public {
         vm.prank(address(0x123));
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
         policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
     }
 
@@ -238,5 +245,25 @@ contract BlockBuilderPolicyTest is Test {
 
         vm.prank(bf42Mock.teeAddress);
         policy.verifyBlockBuilderProof(1, blockContentHash);
+    }
+
+    function test_upgradeTo_reverts_if_not_owner() public {
+        // Deploy a new implementation
+        address newImplementation = address(new BlockBuilderPolicy());
+
+        // Try to upgrade as non-owner
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
+        upgrader.upgradeProxy(address(policy), newImplementation, bytes(""), address(0x123));
+    }
+
+    function test_upgradeTo_succeeds_if_owner() public {
+        // Deploy a new implementation
+        address newImplementation = address(new BlockBuilderPolicy());
+
+        // Upgrade as owner
+        upgrader.upgradeProxy(address(policy), newImplementation, bytes(""), address(owner));
+
+        // Verify the implementation was updated
+        assertEq(upgrader.getImplementation(address(policy)), newImplementation);
     }
 }
