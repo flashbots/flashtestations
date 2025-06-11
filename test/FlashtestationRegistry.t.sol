@@ -2,10 +2,14 @@
 pragma solidity 0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
+import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import {FlashtestationRegistry, RegisteredTEE} from "../src/FlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
 import {Helper} from "./helpers/Helper.sol";
+import {Upgrader} from "./helpers/Upgrader.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 import {TD_REPORT10_LENGTH, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 import {Output} from "automata-dcap-attestation/contracts/types/CommonStruct.sol";
@@ -20,7 +24,9 @@ struct MockQuote {
 }
 
 contract FlashtestationRegistryTest is Test {
+    address public owner = address(this);
     FlashtestationRegistry public registry;
+    Upgrader public upgrader = new Upgrader();
     MockAutomataDcapAttestationFee public attestationContract;
     MockQuote bf42Mock = MockQuote({
         output: vm.readFileBinary(
@@ -51,7 +57,11 @@ contract FlashtestationRegistryTest is Test {
     function setUp() public {
         // deploy a fresh set of test contracts before each test
         attestationContract = new MockAutomataDcapAttestationFee();
-        registry = new FlashtestationRegistry(address(attestationContract));
+        address implementation = address(new FlashtestationRegistry());
+        address proxy = UnsafeUpgrades.deployUUPSProxy(
+            implementation, abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
+        );
+        registry = FlashtestationRegistry(proxy);
     }
 
     function test_successful_registerTEEService() public {
@@ -380,5 +390,25 @@ contract FlashtestationRegistryTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(QuoteParser.InvalidQuoteLength.selector, shortQuote.length));
         QuoteParser.parseV4Quote(shortQuote);
+    }
+
+    function test_upgradeTo_reverts_if_not_owner() public {
+        // Deploy a new implementation
+        address newImplementation = address(new FlashtestationRegistry());
+
+        // Try to upgrade as non-owner
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
+        upgrader.upgradeProxy(address(registry), newImplementation, bytes(""), address(0x123));
+    }
+
+    function test_upgradeTo_succeeds_if_owner() public {
+        // Deploy a new implementation
+        address newImplementation = address(new FlashtestationRegistry());
+
+        // Upgrade as owner
+        upgrader.upgradeProxy(address(registry), newImplementation, bytes(""), address(owner));
+
+        // Verify the implementation was updated
+        assertEq(upgrader.getImplementation(address(registry)), newImplementation);
     }
 }

@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Test, console} from "forge-std/Test.sol";
+import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry, RegisteredTEE} from "../src/FlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
@@ -50,7 +51,11 @@ contract BlockBuilderPolicyTest is Test {
 
     function setUp() public {
         attestationContract = new MockAutomataDcapAttestationFee();
-        registry = new FlashtestationRegistry(address(attestationContract));
+        address implementation = address(new FlashtestationRegistry());
+        address proxy = UnsafeUpgrades.deployUUPSProxy(
+            implementation, abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
+        );
+        registry = FlashtestationRegistry(proxy);
         policy = new BlockBuilderPolicy(address(registry), owner);
     }
 
