@@ -35,8 +35,10 @@ contract BlockBuilderPolicy is Owned {
     address public immutable registry;
 
     // only v1 supported for now, but this will change with a contract upgrade
-    // Note: we use an array instead of a mapping so that it can be instantiated as a constant
-    uint8[] public constant SUPPORTED_VERSIONS = [1];
+    // Note: we have to use a non-constant array because solidity only supports constant arrays
+    // of value or bytes type. This means in future upgrades the upgrade logic will need to
+    // account for adding new versions to the array
+    uint256[] public SUPPORTED_VERSIONS;
 
     // Errors
 
@@ -54,6 +56,7 @@ contract BlockBuilderPolicy is Owned {
 
     constructor(address _registry, address initialOwner) Owned(initialOwner) {
         registry = _registry;
+        SUPPORTED_VERSIONS.push(1);
         emit RegistrySet(_registry);
     }
 
@@ -67,25 +70,17 @@ contract BlockBuilderPolicy is Owned {
     function verifyBlockBuilderProof(uint8 version, bytes32 blockContentHash) external {
         require(isSupportedVersion(version), UnsupportedVersion(version));
         // Check if the caller is an authorized TEE block builder for our Policy
-        require(
-            isAllowedPolicy(msg.sender),
-            UnauthorizedBlockBuilder(msg.sender)
-        );
-        
+        require(isAllowedPolicy(msg.sender), UnauthorizedBlockBuilder(msg.sender));
+
         // At this point, we know:
         // 1. The caller is a registered TEE-controlled address from an attested TEE
         // 2. The TEE is running an approved block builder workload (via policy)
-        
+
         // Note: Due to EVM limitations (no retrospection), we cannot validate the blockContentHash
         // onchain. We rely on the TEE workload to correctly compute this hash according to the
         // specified version of the calculation method.
-        
-        emit BlockBuilderProofVerified(
-            msg.sender,
-            block.number,
-            version,
-            blockContentHash
-        );
+
+        emit BlockBuilderProofVerified(msg.sender, block.number, version, blockContentHash);
     }
 
     /// @notice Helper function to check if a given version is supported by this Policy
