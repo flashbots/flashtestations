@@ -35,7 +35,12 @@ contract RemoveWorkloadFromPolicyScript is Script {
     function run() public {
         vm.startBroadcast();
         policy = BlockBuilderPolicy(vm.envAddress("ADDRESS_BLOCK_BUILDER_POLICY"));
-        policy.removeWorkloadFromPolicy(WorkloadId.wrap(vm.envBytes32("WORKLOAD_ID")));
+        console.log("ADDRESS_BLOCK_BUILDER_POLICY:");
+        console.logAddress(address(policy));
+        bytes32 workloadId = vm.envBytes32("WORKLOAD_ID");
+        console.log("WORKLOAD_ID:");
+        console.logBytes32(workloadId);
+        policy.removeWorkloadFromPolicy(WorkloadId.wrap(workloadId));
         vm.stopBroadcast();
     }
 }

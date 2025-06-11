@@ -19,13 +19,20 @@ contract BlockBuilderPolicyScript is Script {
         // this is the address that stores all of the TEE-controlled addresses and their associated workloadIds
         address registry = vm.envAddress("FLASHTESTATION_REGISTRY_ADDRESS");
         console.log("registry", registry);
+        // do some safety checks to make sure this is indeed a registry contract
+        require(registry != address(0), "FLASHTESTATION_REGISTRY_ADDRESS address is 0x0");
+        FlashtestationRegistry registryContract = FlashtestationRegistry(registry);
+        require(
+            registryContract.owner() == vm.envAddress("FLASHTESTATION_REGISTRY_OWNER"),
+            "FLASHTESTATION_REGISTRY_ADDRESS owner mismatch"
+        );
+
         // this is the address that can add and remove workloads from the policy, and upgrade the policy contract
         address owner = vm.envAddress("OWNER_BLOCK_BUILDER_POLICY");
         console.log("owner", owner);
-        
+
         Upgrades.deployUUPSProxy(
-            "BlockBuilderPolicy.sol",
-            abi.encodeCall(BlockBuilderPolicy.initialize, (owner, registry))
+            "BlockBuilderPolicy.sol", abi.encodeCall(BlockBuilderPolicy.initialize, (owner, registry))
         );
         vm.stopBroadcast();
     }

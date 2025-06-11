@@ -57,7 +57,8 @@ contract BlockBuilderPolicyTest is Test {
         attestationContract = new MockAutomataDcapAttestationFee();
         address registryImplementation = address(new FlashtestationRegistry());
         address registryProxy = UnsafeUpgrades.deployUUPSProxy(
-            registryImplementation, abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
+            registryImplementation,
+            abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
         address policyImplementation = address(new BlockBuilderPolicy());
