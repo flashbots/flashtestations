@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 
@@ -11,15 +12,27 @@ import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 /// @dev the FLASHTESTATION_REGISTRY_ADDRESS env var is the address of the contract deployed by the FlashtestationRegistryScript
 /// @dev the OWNER_BLOCK_BUILDER_POLICY env var is the address that can add and remove workloads from the policy
 contract BlockBuilderPolicyScript is Script {
-    BlockBuilderPolicy public policy;
-    FlashtestationRegistry public registry;
-
     function setUp() public {}
 
     function run() public {
         vm.startBroadcast();
-        policy = new BlockBuilderPolicy(
-            vm.envAddress("FLASHTESTATION_REGISTRY_ADDRESS"), vm.envAddress("OWNER_BLOCK_BUILDER_POLICY")
+        // this is the address that stores all of the TEE-controlled addresses and their associated workloadIds
+        address registry = vm.envAddress("FLASHTESTATION_REGISTRY_ADDRESS");
+        console.log("registry", registry);
+        // do some safety checks to make sure this is indeed a registry contract
+        require(registry != address(0), "FLASHTESTATION_REGISTRY_ADDRESS address is 0x0");
+        FlashtestationRegistry registryContract = FlashtestationRegistry(registry);
+        require(
+            registryContract.owner() == vm.envAddress("FLASHTESTATION_REGISTRY_OWNER"),
+            "FLASHTESTATION_REGISTRY_ADDRESS owner mismatch"
+        );
+
+        // this is the address that can add and remove workloads from the policy, and upgrade the policy contract
+        address owner = vm.envAddress("OWNER_BLOCK_BUILDER_POLICY");
+        console.log("owner", owner);
+
+        Upgrades.deployUUPSProxy(
+            "BlockBuilderPolicy.sol", abi.encodeCall(BlockBuilderPolicy.initialize, (owner, registry))
         );
         vm.stopBroadcast();
     }
