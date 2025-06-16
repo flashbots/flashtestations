@@ -182,9 +182,8 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.expectEmit(address(registry));
-
         emit IFlashtestationRegistry.TEEServiceRegistered(
-            expectedAddress, expectedWorkloadId, mockQuote, expectedPublicKey, false
+            expectedAddress, expectedWorkloadId, mockQuote, bf42Mock.publicKey, false
         );
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
