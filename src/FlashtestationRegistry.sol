@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IAttestation} from "./interfaces/IAttestation.sol";
 import {QuoteParser, WorkloadId} from "./utils/QuoteParser.sol";
@@ -24,7 +25,13 @@ struct RegisteredTEE {
  * @dev A contract for managing trusted execution environment (TEE) identities and configurations
  * using Automata's Intel DCAP attestation
  */
-contract FlashtestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradeable {
+contract FlashtestationRegistry is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    EIP712Upgradeable,
+    ReentrancyGuardTransient
+{
     using ECDSA for bytes32;
 
     // Constants
@@ -96,7 +103,7 @@ contract FlashtestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgrad
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      */
-    function registerTEEService(bytes calldata rawQuote) external limitBytesSize(rawQuote) {
+    function registerTEEService(bytes calldata rawQuote) external limitBytesSize(rawQuote) nonReentrant {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
 
         if (!success) {
@@ -137,6 +144,7 @@ contract FlashtestationRegistry is Initializable, UUPSUpgradeable, OwnableUpgrad
     function permitRegisterTEEService(bytes calldata rawQuote, uint256 nonce, bytes calldata eip712Sig)
         external
         limitBytesSize(rawQuote)
+        nonReentrant
     {
         // Verify the quote with the attestation contract
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
