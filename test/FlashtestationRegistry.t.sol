@@ -21,6 +21,7 @@ struct MockQuote {
     bytes quote;
     address teeAddress;
     bytes publicKey;
+    uint256 privateKey;
     WorkloadId workloadId;
 }
 
@@ -38,7 +39,8 @@ contract FlashtestationRegistryTest is Test {
         ),
         publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
-        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
+        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
     MockQuote d204Mock = MockQuote({
         output: vm.readFileBinary(
@@ -49,7 +51,20 @@ contract FlashtestationRegistryTest is Test {
         ),
         publicKey: hex"d204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6",
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
-        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
+        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
+    });
+    MockQuote mock7b91 = MockQuote({
+        output: vm.readFileBinary(
+            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/output.bin"
+        ),
+        quote: vm.readFileBinary(
+            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/quote.bin"
+        ),
+        publicKey: hex"7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19",
+        teeAddress: 0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF,
+        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
+        privateKey: 0x92e4b5ed61db615b26da2271da5b47c42d691b3164561cfb4edbc85ca6ca61a8
     });
 
     // this is some random workloadId that is not the same as the one in the mock quotes
@@ -417,10 +432,10 @@ contract FlashtestationRegistryTest is Test {
 
     function test_successful_permitRegisterTEEService() public {
         // First get a valid attestation quote stored
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
-        WorkloadId expectedWorkloadId = bf42Mock.workloadId;
+        bytes memory mockOutput = mock7b91.output;
+        bytes memory mockQuote = mock7b91.quote;
+        address expectedAddress = mock7b91.teeAddress;
+        WorkloadId expectedWorkloadId = mock7b91.workloadId;
 
         // Set the attestation contract to return a successful attestation
         attestationContract.setSuccess(true);
@@ -429,15 +444,17 @@ contract FlashtestationRegistryTest is Test {
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
         bytes32 digest = registry.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(expectedAddress, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Register the TEE
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(
-            expectedAddress, expectedWorkloadId, mockQuote, bf42Mock.publicKey, false
+            expectedAddress, expectedWorkloadId, mockQuote, mock7b91.publicKey, false
         );
-        vm.prank(expectedAddress);
+
+        // the caller here is unspecified (i.e. no vm.prank), so if it succeeds
+        // it means any address can call this function (assuming they have the correct signature)
         registry.permitRegisterTEEService(mockQuote, 0, signature);
 
         (WorkloadId workloadId, bytes memory rawQuote, bool isValid, bytes memory publicKey) =
@@ -445,33 +462,31 @@ contract FlashtestationRegistryTest is Test {
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(publicKey, bf42Mock.publicKey, "Public key mismatch");
+        vm.assertEq(publicKey, mock7b91.publicKey, "Public key mismatch");
         vm.assertEq(registry.nonces(expectedAddress), 1, "Nonce should be incremented");
     }
 
-    function test_reverts_with_invalid_signature() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+    function test_permitRegisterTEEService_reverts_with_invalid_signature() public {
+        bytes memory mockOutput = mock7b91.output;
+        bytes memory mockQuote = mock7b91.quote;
+        (, uint256 invalid_pk) = makeAddrAndKey("invalid_signer");
 
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
 
-        // Create the EIP-712 signature with wrong private key
+        // Create the EIP-712 signature with wrong private key (i.e. 0x1)
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
         bytes32 digest = registry.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalid_pk, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.prank(expectedAddress);
         vm.expectRevert(FlashtestationRegistry.InvalidSignature.selector);
         registry.permitRegisterTEEService(mockQuote, 0, signature);
     }
 
-    function test_reverts_with_invalid_nonce() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+    function test_permitRegisterTEEService_reverts_with_invalid_nonce() public {
+        bytes memory mockOutput = mock7b91.output;
+        bytes memory mockQuote = mock7b91.quote;
 
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
@@ -479,18 +494,16 @@ contract FlashtestationRegistryTest is Test {
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 1); // wrong nonce
         bytes32 digest = registry.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(expectedAddress, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.prank(expectedAddress);
         vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.InvalidNonce.selector, 0, 1));
         registry.permitRegisterTEEService(mockQuote, 1, signature);
     }
 
-    function test_reverts_with_replayed_signature() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+    function test_permitRegisterTEEService_reverts_with_replayed_signature() public {
+        bytes memory mockOutput = mock7b91.output;
+        bytes memory mockQuote = mock7b91.quote;
 
         attestationContract.setSuccess(true);
         attestationContract.setOutput(mockOutput);
@@ -498,15 +511,13 @@ contract FlashtestationRegistryTest is Test {
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
         bytes32 digest = registry.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(expectedAddress, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // First registration should succeed
-        vm.prank(expectedAddress);
         registry.permitRegisterTEEService(mockQuote, 0, signature);
 
         // Try to replay the same signature
-        vm.prank(expectedAddress);
         vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.InvalidNonce.selector, 1, 0));
         registry.permitRegisterTEEService(mockQuote, 0, signature);
     }
