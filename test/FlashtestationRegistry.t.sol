@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test, console} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {FlashtestationRegistry, RegisteredTEE} from "../src/FlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
@@ -53,6 +54,8 @@ contract FlashtestationRegistryTest is Test {
 
     // this is some random workloadId that is not the same as the one in the mock quotes
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
+
+    using ECDSA for bytes32;
 
     function setUp() public {
         // deploy a fresh set of test contracts before each test
@@ -410,5 +413,101 @@ contract FlashtestationRegistryTest is Test {
 
         // Verify the implementation was updated
         assertEq(upgrader.getImplementation(address(registry)), newImplementation);
+    }
+
+    function test_successful_permitRegisterTEEService() public {
+        // First get a valid attestation quote stored
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+        WorkloadId expectedWorkloadId = bf42Mock.workloadId;
+
+        // Set the attestation contract to return a successful attestation
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = registry.computeStructHash(mockQuote, 0);
+        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(expectedAddress, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Register the TEE
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceRegistered(
+            expectedAddress, expectedWorkloadId, mockQuote, bf42Mock.publicKey, false
+        );
+        vm.prank(expectedAddress);
+        registry.permitRegisterTEEService(mockQuote, 0, signature);
+
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid, bytes memory publicKey) =
+            registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
+        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
+        vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
+        vm.assertEq(publicKey, bf42Mock.publicKey, "Public key mismatch");
+        vm.assertEq(registry.nonces(expectedAddress), 1, "Nonce should be incremented");
+    }
+
+    function test_reverts_with_invalid_signature() public {
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        // Create the EIP-712 signature with wrong private key
+        bytes32 structHash = registry.computeStructHash(mockQuote, 0);
+        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(expectedAddress);
+        vm.expectRevert(FlashtestationRegistry.InvalidSignature.selector);
+        registry.permitRegisterTEEService(mockQuote, 0, signature);
+    }
+
+    function test_reverts_with_invalid_nonce() public {
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = registry.computeStructHash(mockQuote, 1); // wrong nonce
+        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(expectedAddress, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.prank(expectedAddress);
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.InvalidNonce.selector, 0, 1));
+        registry.permitRegisterTEEService(mockQuote, 1, signature);
+    }
+
+    function test_reverts_with_replayed_signature() public {
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        address expectedAddress = bf42Mock.teeAddress;
+
+        attestationContract.setSuccess(true);
+        attestationContract.setOutput(mockOutput);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = registry.computeStructHash(mockQuote, 0);
+        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(expectedAddress, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // First registration should succeed
+        vm.prank(expectedAddress);
+        registry.permitRegisterTEEService(mockQuote, 0, signature);
+
+        // Try to replay the same signature
+        vm.prank(expectedAddress);
+        vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.InvalidNonce.selector, 1, 0));
+        registry.permitRegisterTEEService(mockQuote, 0, signature);
     }
 }
