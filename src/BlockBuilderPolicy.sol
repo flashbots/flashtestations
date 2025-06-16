@@ -5,6 +5,8 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {WorkloadId} from "./utils/QuoteParser.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
@@ -20,8 +22,13 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
  * changes, which is a costly and error-prone process. Instead, consumer contracts need only check if a TEE address
  * is allowed under any workload in a Policy, and the FlashtestationRegistry will handle the rest
  */
-contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradeable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using ECDSA for bytes32;
+
+    // EIP-712 Constants
+    bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
+        keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
 
     // The set of workloadIds that are allowed under this policy
     // This is only updateable by governance (i.e. the owner) of the Policy contract.
@@ -42,12 +49,16 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     // account for adding new versions to the array
     uint256[] public SUPPORTED_VERSIONS;
 
+    // Tracks nonces for EIP-712 signatures to prevent replay attacks
+    mapping(address => uint256) public nonces;
+
     // Errors
 
     error WorkloadAlreadyInPolicy();
     error WorkloadNotInPolicy();
     error UnauthorizedBlockBuilder(address caller); // the teeAddress is not associated with a valid TEE workload
     error UnsupportedVersion(uint8 version); // see SUPPORTED_VERSIONS for supported versions
+    error InvalidNonce(uint256 expected, uint256 provided);
 
     // Events
 
@@ -63,6 +74,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
      */
     function initialize(address _initialOwner, address _registry) external initializer {
         __Ownable_init(_initialOwner);
+        __EIP712_init("BlockBuilderPolicy", "1");
         registry = _registry;
         SUPPORTED_VERSIONS.push(1);
         emit RegistrySet(_registry);
@@ -77,10 +89,55 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// and the TEE is running an approved block builder workload (see BlockBuilderPolicy.addWorkloadToPolicy)
     /// @notice The blockContentHash is a keccak256 hash of a subset of the block header, as specified by the version.
     /// See the [flashtestations spec](https://github.com/flashbots/rollup-boost/blob/77fc19f785eeeb9b4eb5fb08463bc556dec2c837/specs/flashtestations.md) for more details
+    /// @dev If you do not want to deal with the operational difficulties of keeping your TEE-controlled
+    /// addresses funded, you can use the permitVerifyBlockBuilderProof function instead which costs
+    /// more gas, but allows any EOA to submit a block builder proof on behalf of a TEE
     function verifyBlockBuilderProof(uint8 version, bytes32 blockContentHash) external {
+        _verifyBlockBuilderProof(msg.sender, version, blockContentHash);
+    }
+
+    /// @notice Verify a block builder proof using EIP-712 signatures
+    /// @param version The version of the flashtestation's protocol used to generate the block builder proof
+    /// @param blockContentHash The hash of the block content
+    /// @param nonce The nonce to use for the EIP-712 signature
+    /// @param eip712Sig The EIP-712 signature of the verification message
+    /// @notice This function allows any EOA to submit a block builder proof on behalf of a TEE
+    /// @notice The TEE must sign a proper EIP-712-formatted message, and the signer must match a TEE-controlled address
+    /// whose associated workload is approved under this policy
+    /// @dev This function is useful if you do not want to deal with the operational difficulties of keeping your
+    /// TEE-controlled addresses funded, but note that because of the larger number of function arguments, will cost
+    /// more gas than the non-EIP-712 verifyBlockBuilderProof function
+    function permitVerifyBlockBuilderProof(
+        uint8 version,
+        bytes32 blockContentHash,
+        uint256 nonce,
+        bytes calldata eip712Sig
+    ) external {
+        // Get the TEE address from the signature
+        bytes32 digest = getHashedTypeDataV4(computeStructHash(version, blockContentHash, nonce));
+        address teeAddress = digest.recover(eip712Sig);
+
+        // Verify the nonce
+        uint256 expectedNonce = nonces[teeAddress];
+        require(nonce == expectedNonce, InvalidNonce(expectedNonce, nonce));
+
+        // Increment the nonce
+        nonces[teeAddress]++;
+
+        // Verify the block builder proof
+        _verifyBlockBuilderProof(teeAddress, version, blockContentHash);
+    }
+
+    /// @notice Internal function to verify a block builder proof
+    /// @param teeAddress The TEE-controlled address
+    /// @param version The version of the flashtestation's protocol
+    /// @param blockContentHash The hash of the block content
+    /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
+    /// and it is not needed to be called by other contracts
+    function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         require(isSupportedVersion(version), UnsupportedVersion(version));
         // Check if the caller is an authorized TEE block builder for our Policy
-        require(isAllowedPolicy(msg.sender), UnauthorizedBlockBuilder(msg.sender));
+        require(isAllowedPolicy(teeAddress), UnauthorizedBlockBuilder(teeAddress));
 
         // At this point, we know:
         // 1. The caller is a registered TEE-controlled address from an attested TEE
@@ -90,7 +147,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         // onchain. We rely on the TEE workload to correctly compute this hash according to the
         // specified version of the calculation method.
 
-        emit BlockBuilderProofVerified(msg.sender, block.number, version, blockContentHash);
+        emit BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
     }
 
     /// @notice Helper function to check if a given version is supported by this Policy
@@ -175,5 +232,21 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// constraint, and so we need to make our own public getter
     function getWorkload(uint256 index) external view returns (bytes32) {
         return workloadIds.at(index);
+    }
+
+    /// @notice Computes the digest for the EIP-712 signature
+    /// @param structHash The struct hash for the EIP-712 signature
+    /// @return The digest for the EIP-712 signature
+    function getHashedTypeDataV4(bytes32 structHash) public view returns (bytes32) {
+        return _hashTypedDataV4(structHash);
+    }
+
+    /// @notice Computes the struct hash for the EIP-712 signature
+    /// @param version The version of the flashtestation's protocol
+    /// @param blockContentHash The hash of the block content
+    /// @param nonce The nonce to use for the EIP-712 signature
+    /// @return The struct hash for the EIP-712 signature
+    function computeStructHash(uint8 version, bytes32 blockContentHash, uint256 nonce) public pure returns (bytes32) {
+        return keccak256(abi.encode(VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH, version, blockContentHash, nonce));
     }
 }
