@@ -48,8 +48,6 @@ contract RemoveWorkloadFromPolicyScript is Script {
 /// @title RegisterTEEScript
 /// @notice A simple helper script to register a TEE to the registry
 contract RegisterTEEScript is Script {
-    FlashtestationRegistry public registry;
-
     // these addreses come from Automata's deploy contract here:
     // https://github.com/automata-network/automata-dcap-attestation/blob/72349dafbf3bd4861eb56fd9d22b21f538adbfe0/evm/forge-script/utils/P256Configuration.sol#L11
     address public ADDRESS_OF_ECDSA_PRECOMPILE = 0x0000000000000000000000000000000000000100;
