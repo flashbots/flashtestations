@@ -409,4 +409,12 @@ library Helper {
     function concat(string memory a, string memory b) internal pure returns (string memory) {
         return string(abi.encodePacked(a, b));
     }
+
+    /// @dev Simple helper function to simulate the block content hash computation
+    /// for the flashtestation protocol. This is used to test the BlockBuilderPolicy contract.
+    function computeFlashtestationBlockContentHash() internal view returns (bytes32) {
+        string[] memory txHashes = new string[](0);
+        bytes32 parentHash = blockhash(block.number - 1);
+        return keccak256(abi.encode(parentHash, block.number, block.timestamp, txHashes));
+    }
 }
