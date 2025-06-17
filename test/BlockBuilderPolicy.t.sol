@@ -436,7 +436,6 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_permitVerifyBlockBuilderProof_reverts_with_replayed_signature() public {
-        address teeAddress = mock7b91.teeAddress;
         bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
 
         // Register TEE and add workload to policy

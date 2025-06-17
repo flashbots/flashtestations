@@ -141,8 +141,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// and it is not needed to be called by other contracts
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         require(isSupportedVersion(version), UnsupportedVersion(version));
-        // Check if the caller is an authorized TEE block builder for our Policy
 
+        // Check if the caller is an authorized TEE block builder for our Policy
         (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
         require(allowed, UnauthorizedBlockBuilder(teeAddress));
 
