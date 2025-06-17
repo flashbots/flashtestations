@@ -146,15 +146,17 @@ contract BlockBuilderPolicyTest is Test {
         _registerTEE(bf42Mock);
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         // Should return true
-        bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
         assertTrue(allowed);
+        assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(bf42Mock.workloadId));
     }
 
     function test_isAllowedPolicy_returns_false_for_unregistered_tee() public {
         // Add workload but do not register TEE
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
-        bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
         assertFalse(allowed);
+        assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_invalid_quote() public {
@@ -165,22 +167,25 @@ contract BlockBuilderPolicyTest is Test {
         attestationContract.setSuccess(false);
         registry.invalidateAttestation(bf42Mock.teeAddress);
         // Should return false
-        bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
         assertFalse(allowed);
+        assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_wrong_workload() public {
         _registerTEE(bf42Mock);
         policy.addWorkloadToPolicy(wrongWorkloadId);
-        bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
         assertFalse(allowed);
+        assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_invalid_tee_when_multiple_workloads_present() public {
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         policy.addWorkloadToPolicy(wrongWorkloadId);
-        bool allowed = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
         assertFalse(allowed);
+        assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy2_returns_true_for_valid_tee_and_tcb() public {
@@ -254,7 +259,9 @@ contract BlockBuilderPolicyTest is Test {
 
         bytes32 blockContentHash = bytes32(hex"1234");
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(bf42Mock.teeAddress, 1, 1, blockContentHash);
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(
+            bf42Mock.teeAddress, bf42Mock.workloadId, 1, 1, blockContentHash
+        );
 
         vm.prank(bf42Mock.teeAddress);
         policy.verifyBlockBuilderProof(1, blockContentHash);
@@ -296,7 +303,9 @@ contract BlockBuilderPolicyTest is Test {
 
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(
+            teeAddress, mock7b91.workloadId, block.number, version, blockContentHash
+        );
 
         // Call the function
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
@@ -321,7 +330,9 @@ contract BlockBuilderPolicyTest is Test {
 
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(
+            teeAddress, mock7b91.workloadId, block.number, version, blockContentHash
+        );
 
         // Call the function
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
@@ -338,7 +349,9 @@ contract BlockBuilderPolicyTest is Test {
 
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(
+            teeAddress, mock7b91.workloadId, block.number, version, blockContentHash
+        );
 
         // Call the function
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 1, signature);
@@ -376,7 +389,6 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_permitVerifyBlockBuilderProof_reverts_with_replayed_signature() public {
-        address teeAddress = mock7b91.teeAddress;
         bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
 
         // Register TEE and add workload to policy
