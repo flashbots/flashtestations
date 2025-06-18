@@ -102,7 +102,7 @@ contract FlashtestationRegistry is
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
-        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote, publicKey);
+        bool previouslyRegistered = _addAddress(workloadId, teeAddress, rawQuote, publicKey);
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
@@ -159,7 +159,7 @@ contract FlashtestationRegistry is
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
-        bool previouslyRegistered = addAddress(workloadId, teeAddress, rawQuote, publicKey);
+        bool previouslyRegistered = _addAddress(workloadId, teeAddress, rawQuote, publicKey);
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
@@ -176,7 +176,7 @@ contract FlashtestationRegistry is
      * @param rawQuote The raw quote from the TEE device
      * @return previouslyRegistered Whether the TEE was previously registered
      */
-    function addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote, bytes memory publicKey)
+    function _addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote, bytes memory publicKey)
         internal
         returns (bool previouslyRegistered)
     {
