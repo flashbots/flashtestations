@@ -5,7 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
-import {FlashtestationRegistry, RegisteredTEE} from "../src/FlashtestationRegistry.sol";
+import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
+import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
 import {Upgrader} from "./helpers/Upgrader.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
@@ -191,7 +192,7 @@ contract BlockBuilderPolicyTest is Test {
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         TD10ReportBody memory report = QuoteParser.parseV4Quote(bf42Mock.quote);
         vm.expectRevert(
-            abi.encodeWithSelector(FlashtestationRegistry.TEEServiceNotRegistered.selector, bf42Mock.teeAddress)
+            abi.encodeWithSelector(IFlashtestationRegistry.TEEServiceNotRegistered.selector, bf42Mock.teeAddress)
         );
         policy.isAllowedPolicy2(bf42Mock.teeAddress, report.teeTcbSvn);
     }
