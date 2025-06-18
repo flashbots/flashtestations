@@ -8,17 +8,10 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IAttestation} from "./interfaces/IAttestation.sol";
+import {IFlashtestationRegistry} from "./interfaces/IFlashtestationRegistry.sol";
 import {QuoteParser, WorkloadId} from "./utils/QuoteParser.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 import {TD_REPORT10_LENGTH, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
-
-// TEE identity and status tracking
-struct RegisteredTEE {
-    WorkloadId workloadId; // The workloadID of the TEE device
-    bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
-    bool isValid; // true upon first registration, and false after a quote invalidation
-    bytes publicKey; // The 64-byte uncompressed public key of TEE-controlled address, used to encrypt messages to the TEE
-}
 
 /**
  * @title FlashtestationRegistry
@@ -26,6 +19,7 @@ struct RegisteredTEE {
  * using Automata's Intel DCAP attestation
  */
 contract FlashtestationRegistry is
+    IFlashtestationRegistry,
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -55,25 +49,6 @@ contract FlashtestationRegistry is
 
     // Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
-
-    // Events
-
-    event TEEServiceRegistered(
-        address teeAddress, WorkloadId workloadId, bytes rawQuote, bytes publicKey, bool alreadyExists
-    );
-    event TEEServiceInvalidated(address teeAddress);
-
-    // Errors
-
-    error InvalidQuote(bytes output);
-    error ByteSizeExceeded(uint256 size);
-    error TEEServiceAlreadyRegistered(address teeAddress, WorkloadId workloadId);
-    error SenderMustMatchTEEAddress(address sender, address teeAddress);
-    error TEEServiceNotRegistered(address teeAddress);
-    error TEEServiceAlreadyInvalid(address teeAddress);
-    error TEEIsStillValid(address teeAddress);
-    error InvalidSignature();
-    error InvalidNonce(uint256 expected, uint256 provided);
 
     /**
      * Intializer to set the the Automata DCAP Attestation contract, which verifies TEE quotes
@@ -139,9 +114,9 @@ contract FlashtestationRegistry is
      * instead can rely on any EOA to execute the transaction, but still only allow quotes from attested TEEs
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
-     * @param eip712Sig The EIP-712 signature of the registration message
+     * @param signature The EIP-712 signature of the registration message
      */
-    function permitRegisterTEEService(bytes calldata rawQuote, uint256 nonce, bytes calldata eip712Sig)
+    function permitRegisterTEEService(bytes calldata rawQuote, uint256 nonce, bytes calldata signature)
         external
         limitBytesSize(rawQuote)
         nonReentrant
@@ -177,7 +152,7 @@ contract FlashtestationRegistry is
 
         // Recover the signer, and ensure it matches the TEE-controlled address, otherwise we have no proof
         // that the TEE that generated this quote intends to register with the FlashtestationRegistry
-        address signer = digest.recover(eip712Sig);
+        address signer = digest.recover(signature);
         if (signer != teeAddress) {
             revert InvalidSignature();
         }
