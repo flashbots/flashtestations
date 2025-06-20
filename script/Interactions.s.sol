@@ -35,7 +35,12 @@ contract RemoveWorkloadFromPolicyScript is Script {
     function run() public {
         vm.startBroadcast();
         policy = BlockBuilderPolicy(vm.envAddress("ADDRESS_BLOCK_BUILDER_POLICY"));
-        policy.removeWorkloadFromPolicy(WorkloadId.wrap(vm.envBytes32("WORKLOAD_ID")));
+        console.log("ADDRESS_BLOCK_BUILDER_POLICY:");
+        console.logAddress(address(policy));
+        bytes32 workloadId = vm.envBytes32("WORKLOAD_ID");
+        console.log("WORKLOAD_ID:");
+        console.logBytes32(workloadId);
+        policy.removeWorkloadFromPolicy(WorkloadId.wrap(workloadId));
         vm.stopBroadcast();
     }
 }
@@ -43,8 +48,6 @@ contract RemoveWorkloadFromPolicyScript is Script {
 /// @title RegisterTEEScript
 /// @notice A simple helper script to register a TEE to the registry
 contract RegisterTEEScript is Script {
-    FlashtestationRegistry public registry;
-
     // these addreses come from Automata's deploy contract here:
     // https://github.com/automata-network/automata-dcap-attestation/blob/72349dafbf3bd4861eb56fd9d22b21f538adbfe0/evm/forge-script/utils/P256Configuration.sol#L11
     address public ADDRESS_OF_ECDSA_PRECOMPILE = 0x0000000000000000000000000000000000000100;
@@ -75,10 +78,27 @@ contract RegisterTEEScript is Script {
         bytes memory daimoP256PrecompileMock = address(DAIMO_P256_SOLIDITY_CODE).code;
         vm.etch(ADDRESS_OF_ECDSA_PRECOMPILE, daimoP256PrecompileMock);
 
-        console.logBytes(vm.readFileBinary(vm.envString("PATH_TO_ATTESTATION_QUOTE")));
+        string memory pathToAttestationQuote = vm.envString("PATH_TO_ATTESTATION_QUOTE");
+        console.log("PATH_TO_ATTESTATION_QUOTE:");
+        console.log(pathToAttestationQuote);
 
-        registry = FlashtestationRegistry(vm.envAddress("FLASHTESTATION_REGISTRY_ADDRESS"));
-        registry.registerTEEService(vm.readFileBinary(vm.envString("PATH_TO_ATTESTATION_QUOTE")));
+        address registryAddress = vm.envAddress("FLASHTESTATION_REGISTRY_ADDRESS");
+        console.log("FLASHTESTATION_REGISTRY_ADDRESS:");
+        console.logAddress(registryAddress);
+
+        FlashtestationRegistry registry = FlashtestationRegistry(registryAddress);
+        registry.registerTEEService(vm.readFileBinary(pathToAttestationQuote));
+
+        // fetch the TEE-related data we just added, so the caller of this script can use
+        // the outputs in future scripts (like Interactions.s.sol:AddWorkloadToPolicyScript)
+        address sender = vm.getWallets()[0];
+        (WorkloadId workloadId,,, bytes memory publicKey) = registry.registeredTEEs(sender);
+
+        console.log("workloadId:");
+        console.logBytes32(WorkloadId.unwrap(workloadId));
+        console.log("publicKey:");
+        console.logBytes(publicKey);
+
         vm.stopBroadcast();
     }
 }

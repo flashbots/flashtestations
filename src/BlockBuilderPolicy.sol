@@ -2,7 +2,9 @@
 pragma solidity 0.8.28;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "solmate/src/auth/Owned.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {WorkloadId} from "./utils/QuoteParser.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
@@ -18,7 +20,7 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
  * changes, which is a costly and error-prone process. Instead, consumer contracts need only check if a TEE address
  * is allowed under any workload in a Policy, and the FlashtestationRegistry will handle the rest
  */
-contract BlockBuilderPolicy is Owned {
+contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     // The set of workloadIds that are allowed under this policy
@@ -32,7 +34,7 @@ contract BlockBuilderPolicy is Owned {
     // block gas limits
     EnumerableSet.Bytes32Set internal workloadIds;
 
-    address public immutable registry;
+    address public registry;
 
     // only v1 supported for now, but this will change with a contract upgrade
     // Note: we have to use a non-constant array because solidity only supports constant arrays
@@ -54,11 +56,18 @@ contract BlockBuilderPolicy is Owned {
     event RegistrySet(address registry);
     event BlockBuilderProofVerified(address caller, uint256 blockNumber, uint8 version, bytes32 blockContentHash);
 
-    constructor(address _registry, address initialOwner) Owned(initialOwner) {
+    /**
+     * Intializer to set the the FlashtestationRegistry contract, which verifies TEE quotes
+     * @param _registry The address of the registry contract
+     */
+    function initialize(address _initialOwner, address _registry) external initializer {
+        __Ownable_init(_initialOwner);
         registry = _registry;
         SUPPORTED_VERSIONS.push(1);
         emit RegistrySet(_registry);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @notice Verify a block builder proof
     /// @param version The version of the flashtestation's protocol used to generate the block builder proof
