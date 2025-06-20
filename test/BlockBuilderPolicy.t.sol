@@ -36,6 +36,18 @@ contract BlockBuilderPolicyTest is Test {
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
+    MockQuote bf42MockWithDifferentWorkloadId = MockQuote({
+        output: vm.readFileBinary(
+            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output2.bin"
+        ),
+        quote: vm.readFileBinary(
+            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote2.bin"
+        ),
+        publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
+        teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
+        workloadId: WorkloadId.wrap(0x5e6be81f9e5b10d15a6fa69b19ab0269cd943db39fa1f0d38a76eb76146948cb),
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
+    });
     MockQuote d204Mock = MockQuote({
         output: vm.readFileBinary(
             "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/output.bin"
@@ -100,6 +112,15 @@ contract BlockBuilderPolicyTest is Test {
         assertEq(workload, WorkloadId.unwrap(bf42Mock.workloadId));
     }
 
+    function test_addWorkloadToPolicy_with_multiple_workloads() public {
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        bytes32[] memory workloads = policy.getWorkloads();
+        assertEq(workloads.length, 2);
+        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
+        assertEq(workloads[1], WorkloadId.unwrap(bf42MockWithDifferentWorkloadId.workloadId));
+    }
+
     function test_addWorkloadToPolicy_reverts_if_duplicate() public {
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         vm.expectRevert(BlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
@@ -117,6 +138,31 @@ contract BlockBuilderPolicyTest is Test {
         policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
         bytes32[] memory workloads = policy.getWorkloads();
         assertEq(workloads.length, 0);
+    }
+
+    function test_removeWorkloadFromPolicy_with_multiple_workloads() public {
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        bytes32[] memory workloads = policy.getWorkloads();
+        assertEq(workloads.length, 1);
+        assertEq(workloads[0], WorkloadId.unwrap(bf42MockWithDifferentWorkloadId.workloadId));
+
+        // now remove the other workload
+        policy.removeWorkloadFromPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        workloads = policy.getWorkloads();
+        assertEq(workloads.length, 0);
+
+        // now add the workloads back
+        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        workloads = policy.getWorkloads();
+        assertEq(workloads.length, 1);
+        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
+        policy.addWorkloadToPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        workloads = policy.getWorkloads();
+        assertEq(workloads.length, 2);
+        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
+        assertEq(workloads[1], WorkloadId.unwrap(bf42MockWithDifferentWorkloadId.workloadId));
     }
 
     function test_removeWorkloadFromPolicy_with_multiple_workloads_present() public {
