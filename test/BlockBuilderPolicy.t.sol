@@ -94,8 +94,7 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function _registerTEE(MockQuote memory mock) internal {
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mock.output);
+        attestationContract.setQuoteResult(mock.quote, true, mock.output);
         vm.prank(mock.teeAddress);
         registry.registerTEEService(mock.quote);
     }
@@ -211,7 +210,7 @@ contract BlockBuilderPolicyTest is Test {
         _registerTEE(bf42Mock);
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         // Now invalidate the TEE
-        attestationContract.setSuccess(false);
+        attestationContract.setQuoteResult(bf42Mock.quote, false, new bytes(0));
         registry.invalidateAttestation(bf42Mock.teeAddress);
         // Should return false
         (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
@@ -265,7 +264,7 @@ contract BlockBuilderPolicyTest is Test {
         _registerTEE(bf42Mock);
         policy.addWorkloadToPolicy(bf42Mock.workloadId);
         // Now invalidate the TEE
-        attestationContract.setSuccess(false);
+        attestationContract.setQuoteResult(bf42Mock.quote, false, new bytes(0));
         registry.invalidateAttestation(bf42Mock.teeAddress);
         // Should return false
         TD10ReportBody memory report = registry.getReportBody(bf42Mock.teeAddress);

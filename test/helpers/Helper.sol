@@ -44,7 +44,7 @@ library Helper {
         bytes memory rtMr2,
         bytes memory rtMr3,
         bytes memory reportData
-    ) internal pure returns (TD10ReportBody memory report) {
+    ) public pure returns (TD10ReportBody memory report) {
         report.teeTcbSvn = teeTcbSvn;
         report.mrSeam = mrSeam;
         report.mrsignerSeam = mrsignerSeam;
