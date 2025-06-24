@@ -103,8 +103,7 @@ contract FlashtestationRegistryTest is Test {
         WorkloadId expectedWorkloadId = bf42Mock.workloadId;
 
         // set the attestation contract to return a successful attestation
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(
@@ -124,65 +123,12 @@ contract FlashtestationRegistryTest is Test {
     // test that we can register the same TEEService again with a different quote
     function test_successful_re_registerTEEService() public {
         // do the first register of the TEEService with a valid quote
-        bytes memory mockOutput = d204Mock.output;
-        bytes memory mockQuote = d204Mock.quote;
-        address expectedAddress = d204Mock.teeAddress;
-        WorkloadId expectedWorkloadId = d204Mock.workloadId;
-
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
-
-        vm.expectEmit(address(registry));
-        emit FlashtestationRegistry.TEEServiceRegistered(
-            expectedAddress, expectedWorkloadId, mockQuote, d204Mock.publicKey, false
-        );
-        vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote);
-
-        (WorkloadId workloadId, bytes memory rawQuote, bool isValid, bytes memory publicKey) =
-            registry.registeredTEEs(expectedAddress);
-        vm.assertEq(isValid, true, "TEE should be valid");
-        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(publicKey, d204Mock.publicKey, "Public key mismatch");
-        vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-
-        // now register the same TEEService again with a different quote
-
-        bytes memory mockOutput2 = vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/output2.bin"
-        );
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput2);
-
-        bytes memory mockQuote2 = vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote2.bin"
-        );
-        vm.expectEmit(address(registry));
-        emit FlashtestationRegistry.TEEServiceRegistered(
-            expectedAddress, expectedWorkloadId, mockQuote2, d204Mock.publicKey, true
-        );
-        vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote2);
-
-        (WorkloadId workloadId2, bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) =
-            registry.registeredTEEs(expectedAddress);
-        vm.assertEq(isValid2, true, "TEE should be valid");
-        vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
-        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
-        vm.assertEq(publicKey2, d204Mock.publicKey, "Public key mismatch");
-        vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
-    }
-
-    function test_successful_re_registerTEEService_with_different_workload_ids() public {
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
-        bytes memory expectedPublicKey = bf42Mock.publicKey;
         address expectedAddress = bf42Mock.teeAddress;
         WorkloadId expectedWorkloadId = bf42Mock.workloadId;
 
-        // set the attestation contract to return a successful attestation
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(
@@ -195,8 +141,55 @@ contract FlashtestationRegistryTest is Test {
             registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
         vm.assertEq(publicKey, bf42Mock.publicKey, "Public key mismatch");
+        vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
+
+        // now register the same TEEService again with a different quote
+
+        bytes memory mockQuote2 = bf42MockWithDifferentWorkloadId.quote;
+        bytes memory mockOutput2 = bf42MockWithDifferentWorkloadId.output;
+        WorkloadId expectedWorkloadId2 = bf42MockWithDifferentWorkloadId.workloadId;
+        attestationContract.setQuoteResult(mockQuote2, true, mockOutput2);
+
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceRegistered(
+            expectedAddress, expectedWorkloadId2, mockQuote2, bf42MockWithDifferentWorkloadId.publicKey, true
+        );
+        vm.prank(expectedAddress);
+        registry.registerTEEService(mockQuote2);
+
+        (WorkloadId workloadId2, bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) =
+            registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid2, true, "TEE should be valid");
+        vm.assertEq(WorkloadId.unwrap(workloadId2), WorkloadId.unwrap(expectedWorkloadId2), "Workload ID mismatch");
+        vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
+        vm.assertEq(publicKey2, bf42MockWithDifferentWorkloadId.publicKey, "Public key mismatch");
+        vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
+    }
+
+    function test_successful_re_registerTEEService_with_different_workload_ids() public {
+        bytes memory mockOutput = bf42Mock.output;
+        bytes memory mockQuote = bf42Mock.quote;
+        bytes memory expectedPublicKey = bf42Mock.publicKey;
+        address expectedAddress = bf42Mock.teeAddress;
+        WorkloadId expectedWorkloadId = bf42Mock.workloadId;
+
+        // set the attestation contract to return a successful attestation
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
+
+        vm.expectEmit(address(registry));
+        emit FlashtestationRegistry.TEEServiceRegistered(
+            expectedAddress, expectedWorkloadId, mockQuote, expectedPublicKey, false
+        );
+        vm.prank(expectedAddress);
+        registry.registerTEEService(mockQuote);
+
+        (WorkloadId workloadId, bytes memory rawQuote, bool isValid, bytes memory publicKey) =
+            registry.registeredTEEs(expectedAddress);
+        vm.assertEq(isValid, true, "TEE should be valid");
+        vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
+        vm.assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(expectedWorkloadId), "Workload ID mismatch");
+        vm.assertEq(publicKey, expectedPublicKey, "Public key mismatch");
 
         // now register the same TEE-contraolled address again with a different quote and workloadId
 
@@ -204,8 +197,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockQuote2 = bf42MockWithDifferentWorkloadId.quote;
         expectedPublicKey = bf42MockWithDifferentWorkloadId.publicKey;
         expectedWorkloadId = bf42MockWithDifferentWorkloadId.workloadId;
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput2);
+        attestationContract.setQuoteResult(mockQuote2, true, mockOutput2);
 
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceRegistered(
@@ -224,12 +216,11 @@ contract FlashtestationRegistryTest is Test {
     }
 
     function test_reverts_with_invalid_quote_registerTEEService() public {
-        attestationContract.setSuccess(false);
-        // don't bother setting the output, since it should revert before it's used
+        bytes memory mockQuote = bf42Mock.quote;
+        attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
 
         vm.expectPartialRevert(FlashtestationRegistry.InvalidQuote.selector); // the "partial" just means we don't care about the bytes argument to InvalidQuote(bytes)
-        bytes memory quote = bf42Mock.quote;
-        registry.registerTEEService(quote);
+        registry.registerTEEService(mockQuote);
     }
 
     function test_reverts_with_registering_same_quote_twice() public {
@@ -238,8 +229,7 @@ contract FlashtestationRegistryTest is Test {
         address expectedAddress = bf42Mock.teeAddress;
         WorkloadId expectedWorkloadId = bf42Mock.workloadId;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
@@ -261,8 +251,7 @@ contract FlashtestationRegistryTest is Test {
         output.quoteVersion = 0x0000;
         bytes memory serializedOutput = Helper.serializeOutput(output);
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(serializedOutput);
+        attestationContract.setQuoteResult(mockQuote, true, serializedOutput);
         vm.expectRevert(QuoteParser.InvalidTEEVersion.selector, 0);
         registry.registerTEEService(mockQuote);
     }
@@ -275,8 +264,7 @@ contract FlashtestationRegistryTest is Test {
         output.tee = bytes4(0x00000000);
         bytes memory serializedOutput = Helper.serializeOutput(output);
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(serializedOutput);
+        attestationContract.setQuoteResult(mockQuote, true, serializedOutput);
         vm.expectRevert(QuoteParser.InvalidTEEType.selector, 0);
         registry.registerTEEService(mockQuote);
     }
@@ -295,8 +283,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockQuote = bf42Mock.quote;
         address expectedAddress = bf42Mock.teeAddress;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Call with a different address than the one in the quote
         address differentAddress = address(0x1234);
@@ -316,8 +303,7 @@ contract FlashtestationRegistryTest is Test {
         address expectedAddress = bf42Mock.teeAddress;
         WorkloadId expectedWorkloadId = bf42Mock.workloadId;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
@@ -334,14 +320,13 @@ contract FlashtestationRegistryTest is Test {
         address expectedAddress = bf42Mock.teeAddress;
         WorkloadId expectedWorkloadId = bf42Mock.workloadId;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
         // Now invalidate the TEE
-        attestationContract.setSuccess(false);
+        attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
         registry.invalidateAttestation(expectedAddress);
 
         // Now check that isValidWorkload returns false for this combination
@@ -367,8 +352,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockQuote = bf42Mock.quote;
         address expectedAddress = bf42Mock.teeAddress;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
@@ -391,13 +375,12 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
         address teeAddress = bf42Mock.teeAddress;
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
 
         // Now, invalidate with success==false (should invalidate)
-        attestationContract.setSuccess(false);
+        attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
         vm.prank(address(0x123));
         registry.invalidateAttestation(teeAddress);
 
@@ -411,12 +394,11 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
         address teeAddress = bf42Mock.teeAddress;
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
         // Now, invalidate with success==true (still valid)
-        attestationContract.setSuccess(true);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.expectRevert(abi.encodeWithSelector(FlashtestationRegistry.TEEIsStillValid.selector, teeAddress));
         registry.invalidateAttestation(teeAddress);
     }
@@ -426,12 +408,11 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
         address teeAddress = bf42Mock.teeAddress;
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
         // Now, invalidate with success==false (should invalidate)
-        attestationContract.setSuccess(false);
+        attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
         vm.expectEmit(address(registry));
         emit FlashtestationRegistry.TEEServiceInvalidated(teeAddress);
         registry.invalidateAttestation(teeAddress);
@@ -445,8 +426,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = bf42Mock.output;
         bytes memory mockQuote = bf42Mock.quote;
         address teeAddress = bf42Mock.teeAddress;
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote);
 
@@ -500,8 +480,7 @@ contract FlashtestationRegistryTest is Test {
         WorkloadId expectedWorkloadId = mock7b91.workloadId;
 
         // Set the attestation contract to return a successful attestation
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
@@ -533,8 +512,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockQuote = mock7b91.quote;
         (, uint256 invalid_pk) = makeAddrAndKey("invalid_signer");
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature with wrong private key (i.e. 0x1)
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
@@ -550,8 +528,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = mock7b91.output;
         bytes memory mockQuote = mock7b91.quote;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 1); // wrong nonce
@@ -567,8 +544,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = mock7b91.output;
         bytes memory mockQuote = mock7b91.quote;
 
-        attestationContract.setSuccess(true);
-        attestationContract.setOutput(mockOutput);
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
