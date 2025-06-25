@@ -31,9 +31,10 @@ contract BlockBuilderPolicyScript is Script {
         address owner = vm.envAddress("OWNER_BLOCK_BUILDER_POLICY");
         console.log("owner", owner);
 
-        Upgrades.deployUUPSProxy(
+        address policy = Upgrades.deployUUPSProxy(
             "BlockBuilderPolicy.sol", abi.encodeCall(BlockBuilderPolicy.initialize, (owner, registry))
         );
+        console.log("BlockBuilderPolicy deployed at:", policy);
         vm.stopBroadcast();
     }
 }

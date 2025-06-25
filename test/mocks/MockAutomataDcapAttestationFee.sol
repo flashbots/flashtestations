@@ -18,10 +18,8 @@ contract MockAutomataDcapAttestationFee {
         bool success;
         bytes output;
     }
-    
-    mapping(bytes => QuoteResult) public quoteResults;
 
-    constructor() {}
+    mapping(bytes => QuoteResult) public quoteResults;
 
     function verifyAndAttestOnChain(bytes calldata rawQuote) external view returns (bool, bytes memory) {
         QuoteResult memory result = quoteResults[rawQuote];
