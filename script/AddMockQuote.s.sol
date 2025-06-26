@@ -5,13 +5,16 @@ import {Script, console} from "forge-std/Script.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {MockAutomataDcapAttestationFee} from "../test/mocks/MockAutomataDcapAttestationFee.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
+import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
 
 /**
  * @title AddMockQuote
  * @dev Script to add a mock quote to the MockAutomataDcapAttestationFee contract deployed on unichain experimental
- * @dev This script calls the real attestation contract on Unichain Sepolia to get the output from AttestationSubmitted event,
- *      then uses that output to set up the mock contract to return the same output for the same quote.
+ * @dev This script calls the real attestation contract (i.e. the AutomataDcapAttestationFee.sol deployed by Automata)
+ * on Unichain Sepolia to get the output from AttestationSubmitted event, then uses that output to set up the mock
+ * contract to return the same output for the same quote.
  * @dev This is useful for when we do not want to deploy the full set of Automata DCAP Attestation contracts.
  */
 contract AddMockQuoteScript is Script, DeploymentUtils {
@@ -28,7 +31,7 @@ contract AddMockQuoteScript is Script, DeploymentUtils {
 
         // Get contract addresses from environment
         address mockAttestationAddress = vm.envAddress("MOCK_AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS");
-        address realAttestationAddress = vm.envAddress("AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS");
+        address realAttestationAddress = vm.envAddress("REAL_AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS");
 
         // get fork RPC url from environment
         string memory unichainSepoliaRpcUrl = vm.envString("UNICHAIN_SEPOLIA_RPC_URL");
@@ -72,5 +75,17 @@ contract AddMockQuoteScript is Script, DeploymentUtils {
         vm.stopBroadcast();
 
         console.log("Successfully added mock quote to MockAutomataDcapAttestationFee");
+
+        TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
+        bytes memory publicKey = QuoteParser.extractPublicKey(td10ReportBodyStruct);
+        address teeAddress = address(uint160(uint256(keccak256(publicKey))));
+        WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
+
+        console.log("TEE address:");
+        console.logAddress(teeAddress);
+        console.log("Workload ID (hex):");
+        console.logBytes32(WorkloadId.unwrap(workloadId));
+        console.log("Public key (hex):");
+        console.logBytes(publicKey);
     }
 }
