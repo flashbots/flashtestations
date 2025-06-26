@@ -23,7 +23,7 @@ contract AddWorkloadToPolicyScript is Script {
         console.log("WORKLOAD_ID:");
         console.logBytes32(workloadId);
         policy.addWorkloadToPolicy(WorkloadId.wrap(vm.envBytes32("WORKLOAD_ID")));
-        workloadId = vm.envBytes32("WORKLOAD_ID");
+        console.log("WorkloadId added to policy");
         vm.stopBroadcast();
     }
 }
@@ -42,6 +42,7 @@ contract RemoveWorkloadFromPolicyScript is Script {
         console.log("WORKLOAD_ID:");
         console.logBytes32(workloadId);
         policy.removeWorkloadFromPolicy(WorkloadId.wrap(workloadId));
+        console.log("WorkloadId removed from policy");
         vm.stopBroadcast();
     }
 }
