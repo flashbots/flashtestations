@@ -102,7 +102,10 @@ contract FlashtestationRegistry is
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
-        bool previouslyRegistered = _addAddress(workloadId, teeAddress, rawQuote, publicKey);
+        registeredTEEs[teeAddress] =
+            RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
+
+        bool previouslyRegistered = checkIfPreviouslyRegistered(workloadId, teeAddress, rawQuote);
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
@@ -159,32 +162,30 @@ contract FlashtestationRegistry is
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
-        bool previouslyRegistered = _addAddress(workloadId, teeAddress, rawQuote, publicKey);
+        registeredTEEs[teeAddress] =
+            RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
+
+        bool previouslyRegistered = checkIfPreviouslyRegistered(workloadId, teeAddress, rawQuote);
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
     /**
-     * @notice Adds a TEE to the registry
-     * @dev It's possible that a TEE has already registered with this address, but with a different workloadId.
-     * This is expected if the TEE gets restarted or upgraded and generates a new workloadId.
-     * It's also possible that the address and workloadId are the same, but the quote
-     * is different. This is expected if Intel releases a new set of DCAP Endorsements (i.e.
-     * a new TCB), in which case the quotes the TEE generates will be different.
-     * In both cases, we need to update the registry with the new quote.
+     * @notice Checks if a TEE is already registered with the same workloadId and quote
+     * @dev If a user is trying to add the same address, workloadId, and quote, this is a no-op
+     * and we should revert to signal that the user may be making a mistake (why would
+     * they be trying to add the same TEE twice?).
+     * @dev We do not need to check the public key, because the address has a cryptographically-ensured
+     * 1-to-1 relationship with the public key, so checking it would be redundant
      * @param workloadId The workloadId of the TEE
      * @param teeAddress The TEE-controlled address of the TEE
      * @param rawQuote The raw quote from the TEE device
-     * @return previouslyRegistered Whether the TEE was previously registered
+     * @return Whether the TEE is already registered but is updating its quote
      */
-    function _addAddress(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote, bytes memory publicKey)
+    function checkIfPreviouslyRegistered(WorkloadId workloadId, address teeAddress, bytes calldata rawQuote)
         internal
-        returns (bool previouslyRegistered)
+        view
+        returns (bool)
     {
-        // if a user is trying to add the same address, workloadId, and quote, this is a no-op
-        // and we should revert to signal that the user may be making a mistake (why would
-        // they be trying to add the same TEE twice?). We do not need to check the public key,
-        // because the address has a cryptographically-ensured 1-to-1 relationship with the
-        // public key, so checking it would be redundant
         if (
             WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) == WorkloadId.unwrap(workloadId)
                 && keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)
@@ -192,11 +193,7 @@ contract FlashtestationRegistry is
             revert TEEServiceAlreadyRegistered(teeAddress, workloadId);
         }
 
-        if (WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0) {
-            previouslyRegistered = true;
-        }
-        registeredTEEs[teeAddress] =
-            RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
+        return WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0;
     }
 
     /**
