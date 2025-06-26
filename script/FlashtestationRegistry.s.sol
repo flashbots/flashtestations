@@ -19,12 +19,17 @@ contract FlashtestationRegistryScript is Script {
         vm.startBroadcast();
         // this is the address that can upgrade the code of the deployed registry
         address owner = vm.envAddress("FLASHTESTATION_REGISTRY_OWNER");
+        console.log("FLASHTESTATION_REGISTRY_OWNER:", owner);
+
         // this is the address of the Automata DCAP Attestation contract, which verifies TEE quotes
         address attestationContract = vm.envAddress("AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS");
-        Upgrades.deployUUPSProxy(
+        console.log("AUTOMATA_DCAP_ATTESTATION_FEE_ADDRESS:", attestationContract);
+
+        address registryAddress = Upgrades.deployUUPSProxy(
             "FlashtestationRegistry.sol",
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, attestationContract))
         );
+        console.log("FlashtestationRegistry deployed at:", registryAddress);
         vm.stopBroadcast();
     }
 }
