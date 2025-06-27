@@ -50,6 +50,9 @@ contract FlashtestationRegistry is
     // Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
+    // Gap for future contract upgrades
+    uint256[48] __gap;
+
     /**
      * Initializer to set the Automata DCAP Attestation contract, which verifies TEE quotes
      * @param _attestationContract The address of the attestation contract
