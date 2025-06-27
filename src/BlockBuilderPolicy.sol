@@ -57,7 +57,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     event BlockBuilderProofVerified(address caller, uint256 blockNumber, uint8 version, bytes32 blockContentHash);
 
     /**
-     * Intializer to set the the FlashtestationRegistry contract, which verifies TEE quotes
+     * Initializer to set the FlashtestationRegistry contract, which verifies TEE quotes
+     * @param _initialOwner The address of the initial owner of the contract
      * @param _registry The address of the registry contract
      */
     function initialize(address _initialOwner, address _registry) external initializer {

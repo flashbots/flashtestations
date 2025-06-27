@@ -51,7 +51,7 @@ contract FlashtestationRegistry is
     mapping(address => uint256) public nonces;
 
     /**
-     * Intializer to set the the Automata DCAP Attestation contract, which verifies TEE quotes
+     * Initializer to set the Automata DCAP Attestation contract, which verifies TEE quotes
      * @param _attestationContract The address of the attestation contract
      */
     function initialize(address owner, address _attestationContract) external initializer {
@@ -138,7 +138,7 @@ contract FlashtestationRegistry is
         address teeAddress = address(uint160(uint256(keccak256(publicKey))));
         WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
 
-        // we must ensure the TEE-controlled address is the same as the who signed the EIP-712 signature
+        // we must ensure the TEE-controlled address is the same as the one who signed the EIP-712 signature
         // otherwise we have no proof that the TEE that generated this quote intends to register
         // with the FlashtestationRegistry. This protects against a malicious TEE that generates a quote for a
         // different address, and then calls this function to register itself with the FlashtestationRegistry
@@ -277,7 +277,7 @@ contract FlashtestationRegistry is
      * @param structHash The struct hash for the EIP-712 signature
      * @return The digest for the EIP-712 signature
      */
-    function getHashedTypeDataV4(bytes32 structHash) public view returns (bytes32) {
+    function hashTypedDataV4(bytes32 structHash) public view returns (bytes32) {
         return _hashTypedDataV4(structHash);
     }
 

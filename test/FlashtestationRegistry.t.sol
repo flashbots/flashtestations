@@ -444,7 +444,7 @@ contract FlashtestationRegistryTest is Test {
 
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
-        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
@@ -477,7 +477,7 @@ contract FlashtestationRegistryTest is Test {
 
         // Create the EIP-712 signature with wrong private key (i.e. 0x1)
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
-        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalid_pk, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
@@ -494,7 +494,7 @@ contract FlashtestationRegistryTest is Test {
 
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 1); // wrong nonce
-        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
@@ -511,7 +511,7 @@ contract FlashtestationRegistryTest is Test {
 
         // Create the EIP-712 signature
         bytes32 structHash = registry.computeStructHash(mockQuote, 0);
-        bytes32 digest = registry.getHashedTypeDataV4(structHash);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
