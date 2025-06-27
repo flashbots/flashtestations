@@ -4,9 +4,11 @@ pragma solidity 0.8.28;
 import {Test, console} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
+import {MockQuote} from "../test/FlashtestationRegistry.t.sol";
 import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
 import {Upgrader} from "./helpers/Upgrader.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
@@ -20,14 +22,7 @@ contract BlockBuilderPolicyTest is Test {
     Upgrader public upgrader = new Upgrader();
     address public owner = address(this);
 
-    // Use the same mock quote structure as FlashtestationRegistry.t.sol
-    struct MockQuote {
-        bytes output;
-        bytes quote;
-        address teeAddress;
-        bytes publicKey;
-        WorkloadId workloadId;
-    }
+    uint8 version = 1;
 
     MockQuote bf42Mock = MockQuote({
         output: vm.readFileBinary(
@@ -38,7 +33,8 @@ contract BlockBuilderPolicyTest is Test {
         ),
         publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
-        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
+        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
     MockQuote d204Mock = MockQuote({
         output: vm.readFileBinary(
@@ -49,10 +45,26 @@ contract BlockBuilderPolicyTest is Test {
         ),
         publicKey: hex"d204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6",
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
-        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e)
+        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
+    MockQuote mock7b91 = MockQuote({
+        output: vm.readFileBinary(
+            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/output.bin"
+        ),
+        quote: vm.readFileBinary(
+            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/quote.bin"
+        ),
+        publicKey: hex"7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19",
+        teeAddress: 0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF,
+        workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
+        privateKey: 0x92e4b5ed61db615b26da2271da5b47c42d691b3164561cfb4edbc85ca6ca61a8
+    });
+
     WorkloadId arbitraryWorkloadId = WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
+
+    using ECDSA for bytes32;
 
     function setUp() public {
         attestationContract = new MockAutomataDcapAttestationFee();
@@ -267,5 +279,136 @@ contract BlockBuilderPolicyTest is Test {
 
         // Verify the implementation was updated
         assertEq(upgrader.getImplementation(address(policy)), newImplementation);
+    }
+
+    function test_successful_permitVerifyBlockBuilderProof() public {
+        address teeAddress = mock7b91.teeAddress;
+        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
+
+        // Register TEE and add workload to policy
+        _registerTEE(mock7b91);
+        policy.addWorkloadToPolicy(mock7b91.workloadId);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
+        bytes32 digest = policy.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Expect the event to be emitted
+        vm.expectEmit(address(policy));
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+
+        // Call the function
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
+
+        // Verify nonce was incremented
+        assertEq(policy.nonces(teeAddress), 1, "Nonce should be incremented");
+    }
+
+    function test_successful_permitVerifyBlockBuilderProof_multiple_times() public {
+        address teeAddress = mock7b91.teeAddress;
+        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
+
+        // Register TEE and add workload to policy
+        _registerTEE(mock7b91);
+        policy.addWorkloadToPolicy(mock7b91.workloadId);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
+        bytes32 digest = policy.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Expect the event to be emitted
+        vm.expectEmit(address(policy));
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+
+        // Call the function
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
+
+        // Verify nonce was incremented
+        assertEq(policy.nonces(teeAddress), 1, "Nonce should be incremented");
+
+        // now build the sign and call the function again with the subsequent nonce
+
+        structHash = policy.computeStructHash(version, blockContentHash, 1);
+        digest = policy.getHashedTypeDataV4(structHash);
+        (v, r, s) = vm.sign(mock7b91.privateKey, digest);
+        signature = abi.encodePacked(r, s, v);
+
+        // Expect the event to be emitted
+        vm.expectEmit(address(policy));
+        emit BlockBuilderPolicy.BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+
+        // Call the function
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 1, signature);
+
+        // Verify nonce was incremented
+        assertEq(policy.nonces(teeAddress), 2, "Nonce should be incremented");
+    }
+
+    function test_permitVerifyBlockBuilderProof_reverts_with_unauthorized_block_builder() public {
+        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
+
+        // Create signature with wrong private key
+        (address invalid_signer, uint256 invalid_pk) = makeAddrAndKey("invalid_signer");
+
+        bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
+        bytes32 digest = policy.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalid_pk, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, invalid_signer));
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
+    }
+
+    function test_permitVerifyBlockBuilderProof_reverts_with_invalid_nonce() public {
+        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
+
+        // Create signature with wrong nonce
+        bytes32 structHash = policy.computeStructHash(version, blockContentHash, 1); // wrong nonce
+        bytes32 digest = policy.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidNonce.selector, 0, 1));
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 1, signature);
+    }
+
+    function test_permitVerifyBlockBuilderProof_reverts_with_replayed_signature() public {
+        address teeAddress = mock7b91.teeAddress;
+        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
+
+        // Register TEE and add workload to policy
+        _registerTEE(mock7b91);
+        policy.addWorkloadToPolicy(mock7b91.workloadId);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
+        bytes32 digest = policy.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // First verification should succeed
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
+
+        // Try to replay the same signature
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidNonce.selector, 1, 0));
+        policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
+    }
+
+    function test_permitVerifyBlockBuilderProof_reverts_with_unsupported_version() public {
+        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
+
+        // Create signature with unsupported version
+        uint8 unsupportedVersion = 2;
+        bytes32 structHash = policy.computeStructHash(unsupportedVersion, blockContentHash, 0);
+        bytes32 digest = policy.getHashedTypeDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, unsupportedVersion));
+        policy.permitVerifyBlockBuilderProof(unsupportedVersion, blockContentHash, 0, signature);
     }
 }
