@@ -103,12 +103,13 @@ contract FlashtestationRegistry is
             revert SenderMustMatchTEEAddress(msg.sender, teeAddress);
         }
 
+        bool previouslyRegistered = checkIfPreviouslyRegistered(workloadId, teeAddress, rawQuote);
+
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
         registeredTEEs[teeAddress] =
             RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
 
-        bool previouslyRegistered = checkIfPreviouslyRegistered(workloadId, teeAddress, rawQuote);
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
@@ -163,12 +164,13 @@ contract FlashtestationRegistry is
             revert InvalidSignature();
         }
 
+        bool previouslyRegistered = checkIfPreviouslyRegistered(workloadId, teeAddress, rawQuote);
+
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
         registeredTEEs[teeAddress] =
             RegisteredTEE({workloadId: workloadId, rawQuote: rawQuote, isValid: true, publicKey: publicKey});
 
-        bool previouslyRegistered = checkIfPreviouslyRegistered(workloadId, teeAddress, rawQuote);
         emit TEEServiceRegistered(teeAddress, workloadId, rawQuote, publicKey, previouslyRegistered);
     }
 
@@ -177,6 +179,9 @@ contract FlashtestationRegistry is
      * @dev If a user is trying to add the same address, workloadId, and quote, this is a no-op
      * and we should revert to signal that the user may be making a mistake (why would
      * they be trying to add the same TEE twice?).
+     * @dev If the TEE is already registered and we're using a different quote or a different
+     * workloadId, that is fine and indicates the TEE-controlled address is either re-attesting
+     * (with a new quote) or has moved its private key to a new TEE device (with a new workloadId)
      * @dev We do not need to check the public key, because the address has a cryptographically-ensured
      * 1-to-1 relationship with the public key, so checking it would be redundant
      * @param workloadId The workloadId of the TEE
@@ -196,6 +201,8 @@ contract FlashtestationRegistry is
             revert TEEServiceAlreadyRegistered(teeAddress, workloadId);
         }
 
+        // if the TEE is already registered, but we're using a different quote,
+        // return true to signal that the TEE is already registered but is updating its quote
         return WorkloadId.unwrap(registeredTEEs[teeAddress].workloadId) != 0;
     }
 
