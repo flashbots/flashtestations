@@ -52,6 +52,9 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     // Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
+    // Gap for future contract upgrades
+    uint256[48] __gap;
+
     // Errors
 
     error WorkloadAlreadyInPolicy();
