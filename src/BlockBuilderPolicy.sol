@@ -143,7 +143,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         require(isSupportedVersion(version), UnsupportedVersion(version));
 
         // Check if the caller is an authorized TEE block builder for our Policy
-
         (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
         require(allowed, UnauthorizedBlockBuilder(teeAddress));
 
