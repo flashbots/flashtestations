@@ -4,13 +4,17 @@ A protocol for allowing any [TDX device](https://collective.flashbots.net/t/buil
 
 Its first use case will be for proving that blocks on the Unichain L2 were built [using fair and transparent ordering rules](https://blog.uniswap.org/rollup-boost-is-live-on-unichain)
 
+You can find a [specification for the protocol here](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md)
+
 ## System Components
 
-1. TEE Devices
-1. TEE Public Keys (these are used to identify and verify TEEs and their outputs)
-1. TEE Attestations (also called Quotes)
-1. Block Signature Transaction
-1. Governance Values
+1. TEE Devices: identified uniquely by their WorkloadId, see [QuoteParser's `extractWorkloadId`](src/utils/QuoteParser.sol)
+1. TEE-controlled Public Keys: these are used to identify and verify TEEs and their outputs
+1. TEE Attestations: also called Quotes, which are managed by the [FlashtestationRegistry.sol](src/FlashtestationRegistry.sol)
+1. Automata DCAP Protocol: Flashtestations uses [Automata's protocol](https://github.com/automata-network/automata-dcap-attestation) to perform onchain verification of TDX attestations
+1. Policies: specifically [BlockBuilderPolicy.sol](src/BlockBuilderPolicy.sol), which store Governance-approved WorkloadIds that are associated with vetted versions of Flashbot's TEE-builder software, [op-rbuilder](https://github.com/flashbots/rbuilder/blob/08f6ece0f270c15653a0f19ca9cbd86d332ea78c/crates/op-rbuilder/README.md?plain=1)
+1. Block Signature Transaction: see [BlockBuilderPolicy's `verifyBlockBuilderProof`](src/utils/QuoteParser.sol)
+1. Governance Values: The permissioned entities that are the only ones able to add WorkloadIds to Policies
 
 ## System Flows
 
@@ -22,29 +26,45 @@ Its first use case will be for proving that blocks on the Unichain L2 were built
 
    c. extract and store TEE address and workload info
 
-   d. set liveness (we want a way to indicate that a TEE device has not been active for a long period of time, and for that we use liveness)
-
-1. Verify Flashtestation transaction
+1. Verify Flashtestation Transaction
 
    a. Check signature of transactions against registry of live builder keys
 
-   b. update TEE device liveness
+   b. emit an event indicating the block was built by a particular TEE device (identified by its WorkloadId)
 
-1. Deregistering a TEE Device
+1. Invalidating a TEE Device
 
-   b. Mark TEE device as "retired"
+   a. Mark TEE device as invalid, which should be done if it's underlying DCAP collateral values have been invalidated
+
+1. Adding a WorkloadId to a Policy
+
+   a. Can only be done by the owner of the Policy
+
+   b. Only registered TEE's can have their WorkloadIds added to a Policy
+
+   c. Once its WorkloadId has been added to a Policy, the TEE will be able to prove it built a block using the "Verify Flashtestation Transaction" flow above
+
+1. Removing a WorkloadId from a Policy
+
+   a. This is done when the block builder software running on this TEE is no longer correct (either because of newer versions replacing it, or bugs that have been found)
+
+   b. Can only be done by the owner of the Policy
+
+   c. The WorkloadId must already exist on the Policy
+
+   d. Once its WorkloadId has been removed from a Policy, it will no longer be able to prove it built a block.
 
 ## Deploy
 
 Before deploying anything, create your own `.env` file:
 
 ```bash
-# fill in the necessary values for your .env. If confused, you can reference
+# fill in the necessary values for your .env. The values you fill in depend on the script that
+# you're trying to execute.
+# If confused, you can reference
 # https://getfoundry.sh/guides/scripting-with-solidity
-# to see what the values mean
+# for more context
 cp env.sample .env
-
-source .env
 ```
 
 Then, provide correct values for the following env vars, which all the forge scripts below will use:
@@ -71,8 +91,6 @@ FLASHTESTATION_REGISTRY_OWNER=0x0000000000000000000000000000000000000042
 Then, to deploy, run:
 
 ```
-source .env
-
 forge script --chain 1301 script/FlashtestationRegistry.s.sol:FlashtestationRegistryScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv
 ```
 
@@ -93,8 +111,6 @@ OWNER_BLOCK_BUILDER_POLICY=0x0000000000000000000000000000000000000042
 Then, to deploy, run:
 
 ```
-source .env
-
 forge script --chain 1301 script/BlockBuilderPolicy.s.sol:BlockBuilderPolicyScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv
 ```
 
@@ -117,8 +133,6 @@ PATH_TO_ATTESTATION_QUOTE=/some/path/quote.bin
 Then, to execute, run:
 
 ```
-source .env
-
 # Note: we pass '--skip-simulation' because of a bug where the forge EVM does not contain the precompiles necessary
 # to execute the FlashtestationRegistry.registerTEEService, and so we need to skip simulating it locally
 #
@@ -147,7 +161,5 @@ WORKLOAD_ID=0xeee********************************************************9164e
 Then, to execute, run:
 
 ```
-source .env
-
 forge script --chain 1301 script/Interactions.s.sol:AddWorkloadToPolicyScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv
 ```
