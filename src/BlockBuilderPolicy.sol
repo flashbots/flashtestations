@@ -68,7 +68,9 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     event WorkloadAddedToPolicy(WorkloadId workloadId);
     event WorkloadRemovedFromPolicy(WorkloadId workloadId);
     event RegistrySet(address registry);
-    event BlockBuilderProofVerified(address caller, uint256 blockNumber, uint8 version, bytes32 blockContentHash);
+    event BlockBuilderProofVerified(
+        address caller, WorkloadId workloadId, uint256 blockNumber, uint8 version, bytes32 blockContentHash
+    );
 
     /**
      * Initializer to set the FlashtestationRegistry contract, which verifies TEE quotes
@@ -140,7 +142,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         require(isSupportedVersion(version), UnsupportedVersion(version));
         // Check if the caller is an authorized TEE block builder for our Policy
-        require(isAllowedPolicy(teeAddress), UnauthorizedBlockBuilder(teeAddress));
+        (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
+        require(allowed, UnauthorizedBlockBuilder(teeAddress));
 
         // At this point, we know:
         // 1. The caller is a registered TEE-controlled address from an attested TEE
@@ -150,7 +153,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         // onchain. We rely on the TEE workload to correctly compute this hash according to the
         // specified version of the calculation method.
 
-        emit BlockBuilderProofVerified(teeAddress, block.number, version, blockContentHash);
+        emit BlockBuilderProofVerified(teeAddress, workloadId, block.number, version, blockContentHash);
     }
 
     /// @notice Helper function to check if a given version is supported by this Policy
@@ -168,14 +171,15 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @notice Check if an address is allowed under any workload in the policy
     /// @param teeAddress The TEE-controlled address
     /// @return allowed True if the TEE is valid for any workload in the policy
-    function isAllowedPolicy(address teeAddress) public view returns (bool allowed) {
+    /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
+    function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
             WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
             if (FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)) {
-                return true;
+                return (true, workloadId);
             }
         }
-        return false;
+        return (false, WorkloadId.wrap(0));
     }
 
     /// @notice An alternative implementation of isAllowedPolicy that verifies more than just
