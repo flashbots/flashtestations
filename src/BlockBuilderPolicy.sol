@@ -181,21 +181,21 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @return allowed True if the TEE is valid for any workload in the policy
     /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
     function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
-		RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
-		if (!isValid) {
-			return (false, WorkloadId.wrap(0));
-		}
-		WorkloadId workloadId = workloadIdFromRegistration(registration);
+        RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
+        if (!isValid) {
+            return (false, WorkloadId.wrap(0));
+        }
+        WorkloadId workloadId = workloadIdFromRegistration(registration);
 
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-			if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
-				return (true, workloadId);
-			}
+            if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
+                return (true, workloadId);
+            }
         }
         return (false, WorkloadId.wrap(0));
     }
 
-	// Application specific mapping of registration data, in particular the quote and attested user data, to a workload identifier
+    // Application specific mapping of registration data, in particular the quote and attested user data, to a workload identifier
     function workloadIdFromRegistration(RegisteredTEE memory registration) internal pure returns (WorkloadId) {
         return WorkloadId.wrap(
             keccak256(
@@ -224,19 +224,19 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @dev This exists to show how different Policies can be implemented, based on what
     /// properties of the TEE's attestation are important to verify.
     function isAllowedPolicy2(address teeAddress, bytes16 expectedTeeTcbSvn) external view returns (bool allowed) {
-		RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
-		if (!isValid) {
-			return (false, WorkloadId.wrap(0));
-		}
-		WorkloadId workloadId = workloadIdFromRegistration(registration);
+        RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
+        if (!isValid) {
+            return (false, WorkloadId.wrap(0));
+        }
+        WorkloadId workloadId = workloadIdFromRegistration(registration);
 
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-			if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
-				TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
-				if (reportBody.teeTcbSvn == expectedTeeTcbSvn) {
-					return true;
-				}
-			}
+            if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
+                TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
+                if (reportBody.teeTcbSvn == expectedTeeTcbSvn) {
+                    return true;
+                }
+            }
         }
 
         return false;

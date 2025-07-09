@@ -11,9 +11,9 @@ import {WorkloadId} from "../utils/QuoteParser.sol";
 interface IFlashtestationRegistry {
     // TEE identity and status tracking
     struct RegisteredTEE {
-		TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid parsing
+        TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid parsing
         bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
-		bytes userData; // The application-specific attested to data
+        bytes userData; // The application-specific attested to data
         bool isValid; // true upon first registration, and false after a quote invalidation
     }
 
