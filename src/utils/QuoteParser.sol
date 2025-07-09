@@ -5,16 +5,6 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
 import {BytesUtils} from "@automata-network/on-chain-pccs/utils/BytesUtils.sol";
 import {TD_REPORT10_LENGTH, TDX_TEE, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
-// User Defined Types
-
-// WorkloadID uniquely identifies a TEE workload. A workload is derived from a combination
-// of the TEE's measurement registers. The TDX platform provides several registers that
-// capture cryptographic hashes of code, data, and configuration loaded into the TEE's environment.
-// This means that whenever a TEE device changes anything about its compute stack (e.g. user code,
-// firmware, OS, etc), the workloadID will change.
-// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
-type WorkloadId is bytes32;
-
 /**
  * @title QuoteParser
  * @dev A library for parsing and extracting workload and TEE-controlled address from Automata DCAP Attestation TDX quotes
@@ -100,53 +90,6 @@ library QuoteParser {
         report.rtMr2 = rawReportBody.substring(424, 48);
         report.rtMr3 = rawReportBody.substring(472, 48);
         report.reportData = rawReportBody.substring(520, ETHEREUM_PUBLIC_KEY_LENGTH);
-    }
-
-    /**
-     * @notice Extracts the TEE-controlled address from the TD10ReportBody
-     * @dev The Ethereum address is derived using the first 64 bytes of the reportData
-     * @dev A core part of the flashtestation's protocol is that the TEE generates a TEE-controlled
-     * address, which is used to identify the TEE in the FlashtestationRegistry. This address is derived
-     * from the TEE's public key, which is included in the quote's reportData field
-     * @param td10ReportBody The TD10ReportBody to extract the TEE-controlled address from
-     * @return address TEE-controlled address
-     */
-    function extractEthereumAddress(TD10ReportBody memory td10ReportBody) internal pure returns (address) {
-        bytes memory publicKey = extractPublicKey(td10ReportBody);
-
-        return address(uint160(uint256(keccak256(publicKey))));
-    }
-
-    function extractPublicKey(TD10ReportBody memory td10ReportBody) internal pure returns (bytes memory) {
-        if (td10ReportBody.reportData.length != ETHEREUM_PUBLIC_KEY_LENGTH) {
-            revert InvalidReportDataLength(td10ReportBody.reportData.length);
-        }
-        return td10ReportBody.reportData.substring(0, 64);
-    }
-
-    /**
-     * @notice Derives the TEE's workloadId from the TD10ReportBody
-     * @dev The workloadId is derived using the TEE's measurement registers
-     * @param td10ReportBody The TD10ReportBody to extract the workloadId from
-     * @return WorkloadId workloadId
-     */
-    function extractWorkloadId(TD10ReportBody memory td10ReportBody) internal pure returns (WorkloadId) {
-        return WorkloadId.wrap(
-            keccak256(
-                abi.encode(
-                    td10ReportBody.mrTd,
-                    td10ReportBody.rtMr0,
-                    td10ReportBody.rtMr1,
-                    td10ReportBody.rtMr2,
-                    td10ReportBody.rtMr3,
-                    td10ReportBody.mrOwner,
-                    td10ReportBody.mrOwnerConfig,
-                    td10ReportBody.mrConfigId,
-                    td10ReportBody.tdAttributes,
-                    td10ReportBody.xFAM
-                )
-            )
-        );
     }
 
     /**

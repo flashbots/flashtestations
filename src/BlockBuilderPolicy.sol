@@ -7,9 +7,16 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {WorkloadId} from "./utils/QuoteParser.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+
+// WorkloadID uniquely identifies a TEE workload. A workload is derived from a combination
+// of the TEE's measurement registers. The TDX platform provides several registers that
+// capture cryptographic hashes of code, data, and configuration loaded into the TEE's environment.
+// This means that whenever a TEE device changes anything about its compute stack (e.g. user code,
+// firmware, OS, etc), the workloadID will change.
+// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
+type WorkloadId is bytes32;
 
 /**
  * @title BlockBuilderPolicy
@@ -174,13 +181,38 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @return allowed True if the TEE is valid for any workload in the policy
     /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
     function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
+		RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
+		if (!isValid) {
+			return (false, WorkloadId.wrap(0));
+		}
+		WorkloadId workloadId = workloadIdFromRegistration(registration);
+
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
-            if (FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)) {
-                return (true, workloadId);
-            }
+			if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
+				return (true, workloadId);
+			}
         }
         return (false, WorkloadId.wrap(0));
+    }
+
+	// Application specific mapping of registration data, in particular the quote and attested user data, to a workload identifier
+    function workloadIdFromRegistration(RegisteredTEE memory registration) internal pure returns (WorkloadId) {
+        return WorkloadId.wrap(
+            keccak256(
+                abi.encode(
+                    registration.parsedReportBody.mrTd,
+                    registration.parsedReportBody.rtMr0,
+                    registration.parsedReportBody.rtMr1,
+                    registration.parsedReportBody.rtMr2,
+                    registration.parsedReportBody.rtMr3,
+                    registration.parsedReportBody.mrOwner,
+                    registration.parsedReportBody.mrOwnerConfig,
+                    registration.parsedReportBody.mrConfigId,
+                    registration.parsedReportBody.tdAttributes,
+                    registration.parsedReportBody.xFAM
+                )
+            )
+        );
     }
 
     /// @notice An alternative implementation of isAllowedPolicy that verifies more than just
@@ -192,16 +224,21 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @dev This exists to show how different Policies can be implemented, based on what
     /// properties of the TEE's attestation are important to verify.
     function isAllowedPolicy2(address teeAddress, bytes16 expectedTeeTcbSvn) external view returns (bool allowed) {
+		RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
+		if (!isValid) {
+			return (false, WorkloadId.wrap(0));
+		}
+		WorkloadId workloadId = workloadIdFromRegistration(registration);
+
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
-            TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
-            if (
-                FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)
-                    && reportBody.teeTcbSvn == expectedTeeTcbSvn
-            ) {
-                return true;
-            }
+			if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
+				TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
+				if (reportBody.teeTcbSvn == expectedTeeTcbSvn) {
+					return true;
+				}
+			}
         }
+
         return false;
     }
 
