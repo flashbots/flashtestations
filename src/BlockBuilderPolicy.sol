@@ -181,7 +181,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @return allowed True if the TEE is valid for any workload in the policy
     /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
     function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
-        RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
+        (bool isValid, FlashtestationRegistry.RegisteredTEE memory registration) = FlashtestationRegistry(registry).getRegistration(teeAddress);
         if (!isValid) {
             return (false, WorkloadId.wrap(0));
         }
@@ -195,8 +195,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         return (false, WorkloadId.wrap(0));
     }
 
-    // Application specific mapping of registration data, in particular the quote and attested user data, to a workload identifier
-    function workloadIdFromRegistration(RegisteredTEE memory registration) internal pure returns (WorkloadId) {
+    // Application specific mapping of registration data, in particular the quote and attested app data, to a workload identifier
+    function workloadIdFromRegistration(FlashtestationRegistry.RegisteredTEE memory registration) internal pure returns (WorkloadId) {
         return WorkloadId.wrap(
             keccak256(
                 abi.encode(
@@ -224,7 +224,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @dev This exists to show how different Policies can be implemented, based on what
     /// properties of the TEE's attestation are important to verify.
     function isAllowedPolicy2(address teeAddress, bytes16 expectedTeeTcbSvn) external view returns (bool allowed) {
-        RegisteredTEE registration, bool isValid = FlashtestationRegistry(registry).getRegistration(teeAddress)
+        (bool isValid, FlashtestationRegistry.RegisteredTEE registration) = FlashtestationRegistry(registry).getRegistration(teeAddress);
         if (!isValid) {
             return (false, WorkloadId.wrap(0));
         }

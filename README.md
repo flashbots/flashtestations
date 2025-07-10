@@ -8,51 +8,64 @@ You can find a [specification for the protocol here](https://github.com/flashbot
 
 ## System Components
 
-1. TEE Devices: identified uniquely by their WorkloadId, see [QuoteParser's `extractWorkloadId`](src/utils/QuoteParser.sol)
-1. TEE-controlled Public Keys: these are used to identify and verify TEEs and their outputs
-1. TEE Attestations: also called Quotes, which are managed by the [FlashtestationRegistry.sol](src/FlashtestationRegistry.sol)
-1. Automata DCAP Protocol: Flashtestations uses [Automata's protocol](https://github.com/automata-network/automata-dcap-attestation) to perform onchain verification of TDX attestations
-1. Policies: specifically [BlockBuilderPolicy.sol](src/BlockBuilderPolicy.sol), which store Governance-approved WorkloadIds that are associated with vetted versions of Flashbot's TEE-builder software, [op-rbuilder](https://github.com/flashbots/rbuilder/blob/08f6ece0f270c15653a0f19ca9cbd86d332ea78c/crates/op-rbuilder/README.md?plain=1)
-1. Block Signature Transaction: see [BlockBuilderPolicy's `verifyBlockBuilderProof`](src/utils/QuoteParser.sol)
-1. Governance Values: The permissioned entities that are the only ones able to add WorkloadIds to Policies
+1. **TEE Devices**: Identified by their measurement registers which policies use to compute WorkloadIds
+1. **TEE-controlled Public Keys**: Used to identify and verify TEEs and their outputs
+1. **TEE Attestations**: Also called Quotes, managed by the [FlashtestationRegistry.sol](src/FlashtestationRegistry.sol)
+1. **App Data**: Application-specific data that is attested to alongside the TEE address
+1. **Automata DCAP**: Flashtestations uses [Automata's DCAP library](https://github.com/automata-network/automata-dcap-attestation) for onchain TDX attestation verification
+1. **Policies**: Specifically [BlockBuilderPolicy.sol](src/BlockBuilderPolicy.sol), which:
+   - Store Governance-approved WorkloadIds
+   - Define how WorkloadIds are computed from attestation data
+   - Associate WorkloadIds with vetted versions of TEE software
+1. **Block Signature Transaction**: See [BlockBuilderPolicy's `verifyBlockBuilderProof`](src/BlockBuilderPolicy.sol)
+1. **Governance Values**: Permissioned entities that can add WorkloadIds to Policies
 
 ## System Flows
 
-1. Registering a TEE Device (also referred to as a block builder)
+1. **Registering a TEE Device**
 
    a. Should only be callable from a TEE-controlled address
 
-   b. Verify TEE Quote
+   b. Verify TEE Quote with Automata's DCAP verifier
 
-   c. extract and store TEE address and workload info
+   c. Extract and store:
+      - TEE address (from reportData[0:20])
+      - App data hash validation (reportData[20:52] must match keccak256(address(this) || appData))
+      - Full parsed report body
+      - Raw quote for future verification
+      - Application-specific user data
 
-1. Verify Flashtestation Transaction
+1. **Verify Flashtestation Transaction**
 
-   a. Check signature of transactions against registry of live builder keys
+   a. Policy contract checks signature against registry of registered TEEs
 
-   b. emit an event indicating the block was built by a particular TEE device (identified by its WorkloadId)
+   b. Policy derives WorkloadId from the stored report body
 
-1. Invalidating a TEE Device
+   c. Emit an event indicating the block was built by a particular TEE device
 
-   a. Mark TEE device as invalid, which should be done if it's underlying DCAP collateral values have been invalidated
+1. **Invalidating a TEE Device**
 
-1. Adding a WorkloadId to a Policy
+   a. Mark TEE device as invalid when underlying DCAP collateral values are invalidated
 
-   a. Can only be done by the owner of the Policy
+   b. Affects all policies using that TEE
 
-   b. Only registered TEE's can have their WorkloadIds added to a Policy
+1. **Adding a WorkloadId to a Policy**
 
-   c. Once its WorkloadId has been added to a Policy, the TEE will be able to prove it built a block using the "Verify Flashtestation Transaction" flow above
+   a. Can only be done by the policy owner
 
-1. Removing a WorkloadId from a Policy
+   b. Policy computes WorkloadId from registered TEE's report body
 
-   a. This is done when the block builder software running on this TEE is no longer correct (either because of newer versions replacing it, or bugs that have been found)
+   c. Once added, TEE can prove it built blocks via "Verify Flashtestation Transaction"
 
-   b. Can only be done by the owner of the Policy
+1. **Removing a WorkloadId from a Policy**
 
-   c. The WorkloadId must already exist on the Policy
+   a. Done when TEE software is outdated or has bugs
 
-   d. Once its WorkloadId has been removed from a Policy, it will no longer be able to prove it built a block.
+   b. Can only be done by the policy owner
+
+   c. WorkloadId must already exist in the Policy
+
+   d. Removed WorkloadIds can no longer prove block building
 
 ## Deploy
 
@@ -128,6 +141,9 @@ FLASHTESTATION_REGISTRY_ADDRESS=0x0000000000000000000000000000000000000042
 
 # this is an absolute path to the raw attestation quote, see the example at: script/raw_tdx_quotes/342ad26adb6185cda1aea67ee5f35e9cb5c9cec32b03e8d4382492ca35d53331e906b20edbe46d9337b7b2b2248c633cc2a3aeb3a0ce480dd22b5950860c8a2c
 PATH_TO_ATTESTATION_QUOTE=/some/path/quote.bin
+
+# path to user data file if your TEE includes extended attestation data
+PATH_TO_APP_DATA=/some/path/appdata.bin
 ```
 
 Then, to execute, run:

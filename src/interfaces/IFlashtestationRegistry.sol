@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {WorkloadId} from "../utils/QuoteParser.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
 /**
  * @title IFlashtestationRegistry
@@ -13,13 +13,13 @@ interface IFlashtestationRegistry {
     struct RegisteredTEE {
         TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid parsing
         bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
-        bytes userData; // The application-specific attested to data
+        bytes appData; // The application-specific attested to data
         bool isValid; // true upon first registration, and false after a quote invalidation
     }
 
     // Events
     event TEEServiceRegistered(
-        address teeAddress, bytes rawQuote /* dev: could be hash of the quote */, bytes userData, bool alreadyExists
+        address teeAddress, bytes rawQuote /* dev: could be hash of the quote */, bytes appData, bool alreadyExists
     );
     event TEEServiceInvalidated(address teeAddress);
 
