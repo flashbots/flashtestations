@@ -18,15 +18,15 @@ interface IFlashtestationRegistry {
     }
 
     // Events
-    event TEEServiceRegistered(
-        address teeAddress, bytes rawQuote /* dev: could be hash of the quote */, bytes appData, bool alreadyExists
+    event TEEServiceRegistered( /* dev: could be hash of the quote */
+        address teeAddress, bytes rawQuote, bytes appData, bool alreadyExists
     );
     event TEEServiceInvalidated(address teeAddress);
 
     // Errors
     error InvalidQuote(bytes output);
     error ByteSizeExceeded(uint256 size);
-    error TEEServiceAlreadyRegistered(address teeAddress, bytes rawQuote /* dev: could be hash of the quote */);
+    error TEEServiceAlreadyRegistered(address teeAddress, bytes rawQuote /* dev: could be hash of the quote */ );
     error SenderMustMatchTEEAddress(address sender, address teeAddress);
     error TEEServiceNotRegistered(address teeAddress);
     error TEEServiceAlreadyInvalid(address teeAddress);

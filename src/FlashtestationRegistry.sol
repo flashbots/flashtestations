@@ -83,7 +83,11 @@ contract FlashtestationRegistry is
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      * @param appData The extended attested to data
      */
-    function registerTEEService(bytes calldata rawQuote, bytes calldata appData) external limitBytesSize(rawQuote) nonReentrant {
+    function registerTEEService(bytes calldata rawQuote, bytes calldata appData)
+        external
+        limitBytesSize(rawQuote)
+        nonReentrant
+    {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
 
         if (!success) {
@@ -128,12 +132,12 @@ contract FlashtestationRegistry is
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
      * @param signature The EIP-712 signature of the registration message
      */
-    function permitRegisterTEEService(bytes calldata rawQuote, bytes calldata appData, uint256 nonce, bytes calldata signature)
-        external
-        limitBytesSize(rawQuote)
-        limitBytesSize(appData)
-        nonReentrant
-    {
+    function permitRegisterTEEService(
+        bytes calldata rawQuote,
+        bytes calldata appData,
+        uint256 nonce,
+        bytes calldata signature
+    ) external limitBytesSize(rawQuote) limitBytesSize(appData) nonReentrant {
         // Verify the quote with the attestation contract
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
 
@@ -154,6 +158,9 @@ contract FlashtestationRegistry is
         // otherwise we have no proof that the TEE that generated this quote intends to register
         // with the FlashtestationRegistry. This protects against a malicious TEE that generates a quote for a
         // different address, and then calls this function to register itself with the FlashtestationRegistry
+        if (teeAddress != msg.sender) {
+            revert SenderMustMatchTEEAddress(msg.sender, teeAddress);
+        }
 
         // Verify the nonce
         uint256 expectedNonce = nonces[teeAddress];
@@ -167,6 +174,9 @@ contract FlashtestationRegistry is
 
         // Recover the signer, and ensure it matches the TEE-controlled address, otherwise we have no proof
         // that the TEE that generated this quote intends to register with the FlashtestationRegistry
+        // Note that the important bit is that we make sure whoever created the attestation quote
+        // has access to the private key, rather than verifying the registration is for this contract
+        // since the later is covered by the first reportdata check
         address signer = digest.recover(signature);
         if (signer != teeAddress) {
             revert InvalidSignature();
@@ -196,14 +206,8 @@ contract FlashtestationRegistry is
      * @param rawQuote The raw quote from the TEE device
      * @return Whether the TEE is already registered but is updating its quote
      */
-    function checkIfPreviouslyRegistered(address teeAddress, bytes calldata rawQuote)
-        internal
-        view
-        returns (bool)
-    {
-        if (
-            keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)
-        ) {
+    function checkIfPreviouslyRegistered(address teeAddress, bytes calldata rawQuote) internal view returns (bool) {
+        if (keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)) {
             revert TEEServiceAlreadyRegistered(teeAddress, rawQuote);
         }
 
@@ -250,7 +254,8 @@ contract FlashtestationRegistry is
         // if the TEE-controlled address is not registered with the FlashtestationRegistry,
         // it doesn't make sense to invalidate the attestation
         RegisteredTEE memory registeredTEE = registeredTEEs[teeAddress];
-        if (registeredTEE.rawQuote.length == 0) { // TODO
+        if (registeredTEE.rawQuote.length == 0) {
+            // TODO
             revert TEEServiceNotRegistered(teeAddress);
         }
 
@@ -306,7 +311,11 @@ contract FlashtestationRegistry is
      * @param nonce The nonce to use for the EIP-712 signature
      * @return The struct hash for the EIP-712 signature
      */
-    function computeStructHash(bytes calldata rawQuote, bytes calldata appData, uint256 nonce) public pure returns (bytes32) {
+    function computeStructHash(bytes calldata rawQuote, bytes calldata appData, uint256 nonce)
+        public
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(apData), nonce));
     }
 }
