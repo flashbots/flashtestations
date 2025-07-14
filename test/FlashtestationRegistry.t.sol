@@ -104,8 +104,7 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (bytes memory rawQuote, bool isValid, bytes memory publicKey) =
-            registry.registeredTEEs(expectedAddress);
+        (bytes memory rawQuote, bool isValid, bytes memory publicKey) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(publicKey, bf42Mock.publicKey, "Public key mismatch");
@@ -127,8 +126,7 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (bytes memory rawQuote, bool isValid, bytes memory publicKey) =
-            registry.registeredTEEs(expectedAddress);
+        (bytes memory rawQuote, bool isValid, bytes memory publicKey) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(publicKey, d204Mock.publicKey, "Public key mismatch");
@@ -150,8 +148,7 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) =
-            registry.registeredTEEs(expectedAddress);
+        (bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertEq(publicKey2, d204Mock.publicKey, "Public key mismatch");
@@ -174,8 +171,7 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote);
 
-        (bytes memory rawQuote, bool isValid, bytes memory publicKey) =
-            registry.registeredTEEs(expectedAddress);
+        (bytes memory rawQuote, bool isValid, bytes memory publicKey) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(publicKey, expectedPublicKey, "Public key mismatch");
@@ -195,8 +191,7 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote2);
 
-        (bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) =
-            registry.registeredTEEs(expectedAddress);
+        (bytes memory rawQuote2, bool isValid2, bytes memory publicKey2) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(rawQuote2, mockQuote2, "Raw quote mismatch");
         vm.assertEq(publicKey2, expectedPublicKey, "Public key mismatch");
@@ -483,8 +478,7 @@ contract FlashtestationRegistryTest is Test {
         // it means any address can call this function (assuming they have the correct signature)
         registry.permitRegisterTEEService(mockQuote, 0, signature);
 
-        (bytes memory rawQuote, bool isValid, bytes memory publicKey) =
-            registry.registeredTEEs(expectedAddress);
+        (bytes memory rawQuote, bool isValid, bytes memory publicKey) = registry.registeredTEEs(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(rawQuote, mockQuote, "Raw quote mismatch");
         vm.assertEq(publicKey, mock7b91.publicKey, "Public key mismatch");

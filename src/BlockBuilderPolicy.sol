@@ -59,13 +59,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     // Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
-    struct WorkloadCacheData {
-        WorkloadId workloadId;
-        bool tdConfigurationValid;
-    }
-
-    mapping(bytes32 => WorkloadCacheData) private workloadCache;
-
     // Gap for future contract upgrades
     uint256[48] __gap;
 
@@ -153,6 +146,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @param blockContentHash The hash of the block content
     /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
     /// and it is not needed to be called by other contracts
+	/// @dev We can't check the whole block content hash, but we could check the block number and parent hash
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         require(isSupportedVersion(version), UnsupportedVersion(version));
 
@@ -194,20 +188,11 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
             return (false, WorkloadId.wrap(0));
         }
 
-        // @dev: could also be a separate policy registration call for gas reasons. Otherwise the builder should set gasLimit accordingly.
-        // @dev: the gas saving might not be worth the effort
-        WorkloadCacheData memory workloadData = workloadCache[registration.registrationHash];
-        if (workloadData.workloadId == 0) {
-            workloadData.tdConfigurationValid = ValidateTDConfig(registration.parsedReportBody);
-            workloadData.workloadId = WorkloadIdForTDRegistration(registration);
-            workloadCache[registration.registrationHash] = workloadData;
-        }
-
-        require(workloadData.tdConfigurationValid, "invalid td configuration");
-
+        // @dev: could be cached, but the gas saving might not be worth the effort (requires keeping track of the hash of the quote at the least)
+        WorkloadId workloadId = WorkloadIdForTDRegistration(registration);
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            if (workloadData.workloadId == WorkloadId.wrap(workloadIds.at(i))) {
-                return (true, workloadData.workloadId);
+            if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
+                return (true, workloadId);
             }
         }
 
@@ -234,25 +219,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
                 )
             )
         );
-    }
-
-    // Checks tdAttributes and XFAM. Currently defaults to Intel's TCBLevels (tcb svn allowlist).
-    // @dev: this could also be a part of WorkloadIdForTDRegistration
-    // @dev: this could also be a part of registry isValid (esp. tcbsvn check)
-    function ValidateTDConfig(TD10ReportBody memory report) public pure returns (bool) {
-        // mapping(bytes32 => bool) public allowedTcbSvns;
-        // require(allowedTcbSvns[keccak256(report.teeTcbSvn)], "tcb svn not allowed");
-
-        // @dev: could be parametrized, or removed
-        bool perfConfigAllowed = true;
-
-        bytes8 xfamMask = perfConfigAllowed ? 0x00000000000600E7 : 0x0000000000000003;
-        if (report.xfam & (0xFFFFFFFFFFFFFFFF ^ xfamMask) != 0) return false;
-
-        bytes8 tdAttributesMask = perfConfigAllowed ? 0x0000000050000000 : 0x0000000010000000;
-        if (report.tdAttributes & (0xFFFFFFFFFFFFFFFF ^ tdAttributesMask) != 0) return false;
-
-        return true;
     }
 
     /// @notice Add a workload to a policy (governance only)
