@@ -115,8 +115,13 @@ contract FlashtestationRegistry is
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
-        registeredTEEs[teeAddress] =
-            RegisteredTEE({parsedReportBody: td10ReportBodyStruct, rawQuote: rawQuote, appData: appData, isValid: true});
+        registeredTEEs[teeAddress] = RegisteredTEE({
+            registrationHash: keccak256(abi.encodePacked(rawQuote, appData)),
+            parsedReportBody: td10ReportBodyStruct,
+            rawQuote: rawQuote,
+            appData: appData,
+            isValid: true
+        });
 
         emit TEEServiceRegistered(teeAddress, rawQuote, appData, previouslyRegistered);
     }
@@ -127,6 +132,7 @@ contract FlashtestationRegistry is
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @dev This function exists so that the TEE does not need to be funded with gas for transaction fees, and
      * instead can rely on any EOA to execute the transaction, but still only allow quotes from attested TEEs
+     * @dev Replay is implicitly shielded against through the transaction's nonce (TEE must sign the new nonce)
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      * @param appData Application specific data that supplements TEE quote ReportData
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
@@ -186,8 +192,13 @@ contract FlashtestationRegistry is
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
-        registeredTEEs[teeAddress] =
-            RegisteredTEE({parsedReportBody: td10ReportBodyStruct, rawQuote: rawQuote, appData: appData, isValid: true});
+        registeredTEEs[teeAddress] = RegisteredTEE({
+            registrationHash: keccak256(abi.encodePacked(rawQuote, appData)),
+            parsedReportBody: td10ReportBodyStruct,
+            rawQuote: rawQuote,
+            appData: appData,
+            isValid: true
+        });
 
         emit TEEServiceRegistered(teeAddress, rawQuote, appData, previouslyRegistered);
     }

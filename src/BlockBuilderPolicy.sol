@@ -59,6 +59,13 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     // Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
+    struct WorkloadCacheData {
+        WorkloadId workloadId;
+        bool tdConfigurationValid;
+    }
+
+    mapping(bytes32 => WorkloadCacheData) private workloadCache;
+
     // Gap for future contract upgrades
     uint256[48] __gap;
 
@@ -186,25 +193,36 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         if (!isValid) {
             return (false, WorkloadId.wrap(0));
         }
-        WorkloadId workloadId = workloadIdFromRegistration(registration);
+
+        // @dev: could also be a separate policy registration call for gas reasons. Otherwise the builder should set gasLimit accordingly.
+        // @dev: the gas saving might not be worth the effort
+        workloadData = workloadCache[registration.registrationHash];
+        if (workloadData.workloadId == 0) {
+            workloadData.tdConfigurationValid = ValidateTDConfig(registration.parsedReportBody);
+            workloadData.workloadId = WorkloadIdForTDRegistration(registration);
+            workloadCache[registration.registrationHash] = workloadData;
+        }
+
+        require(workloadData.tdConfigurationValid, "invalid td configuration");
 
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
             if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
                 return (true, workloadId);
             }
         }
+
         return (false, WorkloadId.wrap(0));
     }
 
     // Application specific mapping of registration data, in particular the quote and attested app data, to a workload identifier
-    function workloadIdFromRegistration(FlashtestationRegistry.RegisteredTEE memory registration)
-        internal
+    function WorkloadIdForTDRegistration(FlashtestationRegistry.RegisteredTEE memory registration)
+        public
         pure
         returns (WorkloadId)
     {
         return WorkloadId.wrap(
             keccak256(
-                abi.encode(
+                bytes.concat(
                     registration.parsedReportBody.mrTd,
                     registration.parsedReportBody.rtMr0,
                     registration.parsedReportBody.rtMr1,
@@ -212,40 +230,29 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
                     registration.parsedReportBody.rtMr3,
                     registration.parsedReportBody.mrOwner,
                     registration.parsedReportBody.mrOwnerConfig,
-                    registration.parsedReportBody.mrConfigId,
-                    registration.parsedReportBody.tdAttributes,
-                    registration.parsedReportBody.xFAM
+                    registration.parsedReportBody.mrConfigId
                 )
             )
         );
     }
 
-    /// @notice An alternative implementation of isAllowedPolicy that verifies more than just
-    /// the workloadId's matching and if the attestation is still valid
-    /// @param teeAddress The TEE-controlled address
-    /// @param expectedTeeTcbSvn The expected teeTcbSvn of the TEE's attestation
-    /// @return allowed True if the TEE's attestation is part of the policy, is still valid, and
-    /// the teeTcbSvn matches the expected value
-    /// @dev This exists to show how different Policies can be implemented, based on what
-    /// properties of the TEE's attestation are important to verify.
-    function isAllowedPolicy2(address teeAddress, bytes16 expectedTeeTcbSvn) external view returns (bool allowed) {
-        (bool isValid, FlashtestationRegistry.RegisteredTEE registration) =
-            FlashtestationRegistry(registry).getRegistration(teeAddress);
-        if (!isValid) {
-            return (false, WorkloadId.wrap(0));
-        }
-        WorkloadId workloadId = workloadIdFromRegistration(registration);
+    // Checks tdAttributes and XFAM. Currently defaults to Intel's TCBLevels (tcb svn allowlist).
+    // @dev: this could also be a part of WorkloadIdForTDRegistration
+    // @dev: this could also be a part of registry isValid (esp. tcbsvn check)
+    function ValidateTDConfig(TD10ReportBody memory report) public pure returns (bool) {
+        // mapping(bytes32 => bool) public allowedTcbSvns;
+        // require(allowedTcbSvns[keccak256(report.teeTcbSvn)], "tcb svn not allowed");
 
-        for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
-                TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
-                if (reportBody.teeTcbSvn == expectedTeeTcbSvn) {
-                    return true;
-                }
-            }
-        }
+        // @dev: could be parametrized, or removed
+        bool perfConfigAllowed = true;
 
-        return false;
+        bytes8 xfamMask = perfConfigAllowed ? 0x00000000000600E7 : 0x0000000000000003;
+        if (report.xfam & (0xFFFFFFFFFFFFFFFF ^ xfamMask) != 0) return false;
+
+        bytes8 tdAttributesMask = perfConfigAllowed ? 0x0000000050000000 : 0x0000000010000000;
+        if (report.tdAttributes & (0xFFFFFFFFFFFFFFFF ^ tdAttributesMask) != 0) return false;
+
+        return true;
     }
 
     /// @notice Add a workload to a policy (governance only)

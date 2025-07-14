@@ -11,6 +11,7 @@ import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Struct
 interface IFlashtestationRegistry {
     // TEE identity and status tracking
     struct RegisteredTEE {
+        bytes32 registrationHash; // Used as a downstream caching key
         TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid parsing
         bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
         bytes appData; // The application-specific attested to data
