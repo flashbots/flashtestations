@@ -5,7 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {MockAutomataDcapAttestationFee} from "../test/mocks/MockAutomataDcapAttestationFee.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
-import {QuoteParser, WorkloadId} from "../src/utils/QuoteParser.sol";
+import {QuoteParser} from "../src/utils/QuoteParser.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
 
@@ -79,12 +79,9 @@ contract AddMockQuoteScript is Script, DeploymentUtils {
         TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
         bytes memory publicKey = QuoteParser.extractPublicKey(td10ReportBodyStruct);
         address teeAddress = address(uint160(uint256(keccak256(publicKey))));
-        WorkloadId workloadId = QuoteParser.extractWorkloadId(td10ReportBodyStruct);
 
         console.log("TEE address:");
         console.logAddress(teeAddress);
-        console.log("Workload ID (hex):");
-        console.logBytes32(WorkloadId.unwrap(workloadId));
         console.log("Public key (hex):");
         console.logBytes(publicKey);
     }

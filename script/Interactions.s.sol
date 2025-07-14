@@ -2,9 +2,8 @@
 pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
-import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
+import {BlockBuilderPolicy, WorkloadId} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
-import {WorkloadId} from "../src/utils/QuoteParser.sol";
 import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
 
 /// @title AddWorkloadToPolicyScript

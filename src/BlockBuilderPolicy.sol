@@ -196,7 +196,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
         // @dev: could also be a separate policy registration call for gas reasons. Otherwise the builder should set gasLimit accordingly.
         // @dev: the gas saving might not be worth the effort
-        workloadData = workloadCache[registration.registrationHash];
+        WorkloadCacheData memory workloadData = workloadCache[registration.registrationHash];
         if (workloadData.workloadId == 0) {
             workloadData.tdConfigurationValid = ValidateTDConfig(registration.parsedReportBody);
             workloadData.workloadId = WorkloadIdForTDRegistration(registration);
@@ -206,8 +206,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         require(workloadData.tdConfigurationValid, "invalid td configuration");
 
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
-                return (true, workloadId);
+            if (workloadData.workloadId == WorkloadId.wrap(workloadIds.at(i))) {
+                return (true, workloadData.workloadId);
             }
         }
 

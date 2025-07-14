@@ -207,7 +207,7 @@ contract FlashtestationRegistry is
      * @dev We do not need to check the public key, because the address has a cryptographically-ensured
      * 1-to-1 relationship with the public key, so checking it would be redundant
      * @param teeAddress The TEE-controlled address of the TEE
-     * @param rawQuote The raw quote from the TEE device
+     * @param registrationHash The registration's raw quote and app data hash
      * @return Whether the TEE is already registered but is updating its quote
      */
     function checkPreviousRegistration(address teeAddress, bytes32 registrationHash) internal view returns (bool) {
@@ -307,6 +307,6 @@ contract FlashtestationRegistry is
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(apData), nonce));
+        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(appData), nonce));
     }
 }
