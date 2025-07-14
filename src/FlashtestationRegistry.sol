@@ -34,7 +34,8 @@ contract FlashtestationRegistry is
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024; // 20KB limit
 
     // EIP-712 Constants
-    bytes32 public constant REGISTER_TYPEHASH = keccak256("RegisterTEEService(bytes rawQuote,uint256 nonce)");
+    bytes32 public constant REGISTER_TYPEHASH =
+        keccak256("RegisterTEEService(bytes rawQuote,bytes appData,uint256 nonce)");
 
     // Storage Variables
 
@@ -86,6 +87,7 @@ contract FlashtestationRegistry is
     function registerTEEService(bytes calldata rawQuote, bytes calldata appData)
         external
         limitBytesSize(rawQuote)
+        limitBytesSize(appData)
         nonReentrant
     {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
@@ -101,7 +103,7 @@ contract FlashtestationRegistry is
         address teeAddress = address(td10ReportBodyStruct.reportData[0:20]);
 
         // Cryptographically binding the extended app data to the quote
-        require(td10ReportBodyStruct.reportData[20:52] == keccak256(abi.encodePacked(address(this), appData)));
+        require(td10ReportBodyStruct.reportData[20:52] == keccak256(bytes.concat(address(this), appData)));
 
         // we must ensure the TEE-controlled address is the same as the one calling the function
         // otherwise we have no proof that the TEE that generated this quote intends to register
@@ -111,12 +113,13 @@ contract FlashtestationRegistry is
             revert SenderMustMatchTEEAddress(msg.sender, teeAddress);
         }
 
-        bool previouslyRegistered = checkIfPreviouslyRegistered(teeAddress, rawQuote);
+        bytes32 registrationHash = keccak256(bytes.concat(rawQuote, appData));
+        bool previouslyRegistered = checkPreviousRegistration(teeAddress, registrationHash);
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
         registeredTEEs[teeAddress] = RegisteredTEE({
-            registrationHash: keccak256(abi.encodePacked(rawQuote, appData)),
+            registrationHash: registrationHash,
             parsedReportBody: td10ReportBodyStruct,
             rawQuote: rawQuote,
             appData: appData,
@@ -158,15 +161,7 @@ contract FlashtestationRegistry is
         address teeAddress = address(td10ReportBodyStruct.reportData[0:20]);
 
         // Cryptographically binding the extended app data to the quote
-        require(td10ReportBodyStruct.reportData[20:52] == keccak256(abi.encodePacked(address(this), appData)));
-
-        // we must ensure the TEE-controlled address is the same as the one who signed the EIP-712 signature
-        // otherwise we have no proof that the TEE that generated this quote intends to register
-        // with the FlashtestationRegistry. This protects against a malicious TEE that generates a quote for a
-        // different address, and then calls this function to register itself with the FlashtestationRegistry
-        if (teeAddress != msg.sender) {
-            revert SenderMustMatchTEEAddress(msg.sender, teeAddress);
-        }
+        require(td10ReportBodyStruct.reportData[20:52] == keccak256(bytes.concat(address(this), appData)));
 
         // Verify the nonce
         uint256 expectedNonce = nonces[teeAddress];
@@ -176,24 +171,22 @@ contract FlashtestationRegistry is
         nonces[teeAddress]++;
 
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
-        bytes32 digest = _hashTypedDataV4(computeStructHash(rawQuote, appData, nonce));
+        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, appData, nonce));
 
         // Recover the signer, and ensure it matches the TEE-controlled address, otherwise we have no proof
-        // that the TEE that generated this quote intends to register with the FlashtestationRegistry
-        // Note that the important bit is that we make sure whoever created the attestation quote
-        // has access to the private key, rather than verifying the registration is for this contract
-        // since the later is covered by the first reportdata check
+        // whoever created the attestation quote has access to the private key
         address signer = digest.recover(signature);
         if (signer != teeAddress) {
             revert InvalidSignature();
         }
 
-        bool previouslyRegistered = checkIfPreviouslyRegistered(teeAddress, rawQuote);
+        bytes32 registrationHash = keccak256(bytes.concat(rawQuote, appData));
+        bool previouslyRegistered = checkPreviousRegistration(teeAddress, registrationHash);
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
         registeredTEEs[teeAddress] = RegisteredTEE({
-            registrationHash: keccak256(abi.encodePacked(rawQuote, appData)),
+            registrationHash: registrationHash,
             parsedReportBody: td10ReportBodyStruct,
             rawQuote: rawQuote,
             appData: appData,
@@ -217,9 +210,9 @@ contract FlashtestationRegistry is
      * @param rawQuote The raw quote from the TEE device
      * @return Whether the TEE is already registered but is updating its quote
      */
-    function checkIfPreviouslyRegistered(address teeAddress, bytes calldata rawQuote) internal view returns (bool) {
-        if (keccak256(registeredTEEs[teeAddress].rawQuote) == keccak256(rawQuote)) {
-            revert TEEServiceAlreadyRegistered(teeAddress, rawQuote);
+    function checkPreviousRegistration(address teeAddress, bytes32 registrationHash) internal view returns (bool) {
+        if (registeredTEEs[teeAddress].registrationHash == registrationHash) {
+            revert TEEServiceAlreadyRegistered(teeAddress, registrationHash);
         }
 
         // if the TEE is already registered, but we're using a different quote,
@@ -288,19 +281,6 @@ contract FlashtestationRegistry is
             registeredTEEs[teeAddress].isValid = false;
             emit TEEServiceInvalidated(teeAddress);
         }
-    }
-
-    /**
-     * @notice Returns the TD10ReportBody for the quote used to register a given TEE-controlled address
-     * @param teeAddress The TEE-controlled address to get the TD10ReportBody for
-     * @return reportBody The TD10ReportBody for the given TEE-controlled address
-     * @dev this is useful for when both onchain and offchain users want more
-     * information about the registered TEE
-     */
-    function getReportBody(address teeAddress) public view returns (TD10ReportBody memory) {
-        bytes memory rawQuote = registeredTEEs[teeAddress].rawQuote;
-        require(rawQuote.length > 0, TEEServiceNotRegistered(teeAddress));
-        return QuoteParser.parseV4Quote(rawQuote);
     }
 
     /**
