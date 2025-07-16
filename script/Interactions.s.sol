@@ -63,17 +63,15 @@ contract RegisterTEEScript is Script, DeploymentUtils {
         console.logAddress(registryAddress);
 
         FlashtestationRegistry registry = FlashtestationRegistry(registryAddress);
-        registry.registerTEEService(vm.readFileBinary(pathToAttestationQuote));
+        registry.registerTEEService(vm.readFileBinary(pathToAttestationQuote), bytes("") /* currently not used */ );
 
         // fetch the TEE-related data we just added, so the caller of this script can use
         // the outputs in future scripts (like Interactions.s.sol:AddWorkloadToPolicyScript)
         address sender = vm.getWallets()[0];
-        (WorkloadId workloadId,,, bytes memory publicKey) = registry.registeredTEEs(sender);
+        (,, bytes32 quoteHash,,) = registry.registeredTEEs(sender);
 
-        console.log("workloadId:");
-        console.logBytes32(WorkloadId.unwrap(workloadId));
-        console.log("publicKey:");
-        console.logBytes(publicKey);
+        console.log("quoteHash:");
+        console.logBytes32(quoteHash);
 
         vm.stopBroadcast();
     }

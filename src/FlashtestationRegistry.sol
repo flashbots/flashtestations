@@ -43,7 +43,8 @@ contract FlashtestationRegistry is
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024; // 20KB limit
 
     // EIP-712 Constants
-    bytes32 public constant REGISTER_TYPEHASH = keccak256("RegisterTEEService(bytes rawQuote,uint256 nonce)");
+    bytes32 public constant REGISTER_TYPEHASH =
+        keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistratioData,uint256 nonce)");
 
     // Storage Variables
 
@@ -100,9 +101,14 @@ contract FlashtestationRegistry is
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
+     * @param extendedRegistratioData Abi-encoded attested data, application specific
      */
-    function registerTEEService(bytes calldata rawQuote) external limitBytesSize(rawQuote) nonReentrant {
-        doRegister(msg.caller, rawQuote);
+    function registerTEEService(bytes calldata rawQuote, bytes calldata extendedRegistratioData)
+        external
+        limitBytesSize(rawQuote)
+        nonReentrant
+    {
+        doRegister(msg.caller, rawQuote, extendedRegistratioData);
     }
 
     /**
@@ -113,28 +119,31 @@ contract FlashtestationRegistry is
      * instead can rely on any EOA to execute the transaction, but still only allow quotes from attested TEEs
      * @dev Replay is implicitly shielded against through the transaction's nonce (TEE must sign the new nonce)
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
+     * @param extendedRegistratioData Abi-encoded attested data, application specific
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
      * @param signature The EIP-712 signature of the registration message
      */
-    function permitRegisterTEEService(bytes calldata rawQuote, uint256 nonce, bytes calldata signature)
-        external
-        limitBytesSize(rawQuote)
-        nonReentrant
-    {
-        // Verify the nonce
-        uint256 expectedNonce = nonces[teeAddress];
-        require(nonce == expectedNonce, InvalidNonce(expectedNonce, nonce));
-
-        // Increment the nonce so that any attempts at replaying this transaction will fail
-        nonces[teeAddress]++;
-
+    function permitRegisterTEEService(
+        bytes calldata rawQuote,
+        bytes calldata extendedRegistratioData,
+        uint256 nonce,
+        bytes calldata signature
+    ) external limitBytesSize(rawQuote) limitBytesSize(extendedRegistratioData) nonReentrant {
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
-        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, nonce));
+        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistratioData, nonce));
 
         // Recover the signer, and ensure it matches the TEE-controlled address, otherwise we have no proof
         // whoever created the attestation quote has access to the private key
         address signer = digest.recover(signature);
-        doRegister(signer, rawQuote);
+
+        // Verify the nonce
+        uint256 expectedNonce = nonces[signer];
+        require(nonce == expectedNonce, InvalidNonce(expectedNonce, nonce));
+
+        // Increment the nonce so that any attempts at replaying this transaction will fail
+        nonces[signer]++;
+
+        doRegister(signer, rawQuote, extendedRegistratioData);
     }
 
     /**
@@ -147,9 +156,7 @@ contract FlashtestationRegistry is
      * @param extendedRegistratioData Abi-encoded attested data, application specific
      */
     function doRegister(address caller, bytes calldata rawQuote, bytes calldata extendedRegistratioData)
-        external
-        limitBytesSize(rawQuote)
-        nonReentrant
+        internal
     {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
         if (!success) {
@@ -158,8 +165,8 @@ contract FlashtestationRegistry is
 
         // now we know the quote is valid, we can safely parse the output into the TDX report body,
         // from which we'll extract the data we need to register the TEE
-        TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
-        require(validateTDConfig(td10ReportBodyStruct), "invalid td config");
+        TD10ReportBody memory td10ReportBody = QuoteParser.parseV4VerifierOutput(output);
+        require(validateTDConfig(td10ReportBody), "invalid td config");
 
         // Binding the tee address and extended report data to the quote
         if (td10ReportBody.reportData.length < TD_REPORTDATA_LENGTH) {
@@ -179,7 +186,7 @@ contract FlashtestationRegistry is
         registeredTEEs[teeAddress] = RegisteredTEE({
             rawQuote: rawQuote,
             quoteHash: quoteHash,
-            parsedReportBody: td10ReportBodyStruct,
+            parsedReportBody: td10ReportBody,
             extendedRegistratioData: extendedRegistratioData,
             isValid: true
         });
@@ -214,7 +221,7 @@ contract FlashtestationRegistry is
     /**
      * @notice Fetches TEE registration for a given address
      * @param teeAddress The TEE-controlled address to check
-     * @return Raw quote, and whether the TEE quote, td attributes, or xfam have not been invalidated 
+     * @return Raw quote, and whether the TEE quote, td attributes, or xfam have not been invalidated
      * @dev getRegistration will only return true if a valid TEE quote containing
      * teeAddress in its reportData field was previously registered with the FlashtestationRegistry
      * using the registerTEEService function.
@@ -315,10 +322,15 @@ contract FlashtestationRegistry is
      * @dev This is useful for when both onchain and offchain users want to compute the struct hash
      * for the EIP-712 signature, and then use it to verify the signature
      * @param rawQuote The raw quote from the TEE device
+     * @param extendedRegistratioData Abi-encoded attested data, application specific
      * @param nonce The nonce to use for the EIP-712 signature
      * @return The struct hash for the EIP-712 signature
      */
-    function computeStructHash(bytes calldata rawQuote, uint256 nonce) public pure returns (bytes32) {
-        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), nonce));
+    function computeStructHash(bytes calldata rawQuote, bytes calldata extendedRegistratioData, uint256 nonce)
+        public
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(extendedRegistratioData), nonce));
     }
 }

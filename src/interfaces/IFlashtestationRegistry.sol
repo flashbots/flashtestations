@@ -26,6 +26,7 @@ interface IFlashtestationRegistry {
 
     // Errors
     error InvalidQuote(bytes output);
+    error InvalidReportDataLength(uint256 length);
     error ByteSizeExceeded(uint256 size);
     error TEEServiceAlreadyRegistered(address teeAddress, bytes32 quoteHash);
     error SenderMustMatchTEEAddress(address sender, address teeAddress);

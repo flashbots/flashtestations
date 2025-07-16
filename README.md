@@ -11,11 +11,11 @@ You can find a [specification for the protocol here](https://github.com/flashbot
 1. **TEE Devices**: Identified by their measurement registers which policies use to compute WorkloadIds
 1. **TEE-controlled Public Keys**: Used to identify and verify TEEs and their outputs
 1. **TEE Attestations**: Also called Quotes, managed by the [FlashtestationRegistry.sol](src/FlashtestationRegistry.sol)
-1. **App Data**: Application-specific data that is attested to alongside the TEE address
+1. **Extended Registration Data**: Application-specific data that is attested to alongside the TEE address
 1. **Automata DCAP**: Flashtestations uses [Automata's DCAP library](https://github.com/automata-network/automata-dcap-attestation) for onchain TDX attestation verification
 1. **Policies**: Specifically [BlockBuilderPolicy.sol](src/BlockBuilderPolicy.sol), which:
+   - Compute WorkloadIds from TEE measurement registers
    - Store Governance-approved WorkloadIds
-   - Define how WorkloadIds are computed from attestation data
    - Associate WorkloadIds with vetted versions of TEE software
 1. **Block Signature Transaction**: See [BlockBuilderPolicy's `verifyBlockBuilderProof`](src/BlockBuilderPolicy.sol)
 1. **Governance Values**: Permissioned entities that can add WorkloadIds to Policies
@@ -26,22 +26,24 @@ You can find a [specification for the protocol here](https://github.com/flashbot
 
    a. Should only be callable from a TEE-controlled address
 
-   b. Verify TEE Quote with Automata's DCAP verifier
+   b. Verify TEE Quote
 
    c. Extract and store:
       - TEE address (from reportData[0:20])
-      - App data hash validation (reportData[20:52] must match keccak256(address(this) || appData))
-      - Full parsed report body
+      - Extended registration data for the application to use (keccak of the extended data must match reportData[20:52])
+      - Full parsed report body for cheap access to TD report data fields
       - Raw quote for future verification
-      - Application-specific user data
+      - Quote hash for indexing
 
 1. **Verify Flashtestation Transaction**
 
    a. Policy contract checks signature against registry of registered TEEs
 
-   b. Policy derives WorkloadId from the stored report body
+   b. Policy computes WorkloadId from the stored report body
 
-   c. Emit an event indicating the block was built by a particular TEE device
+   c. Checks if computed WorkloadId is in the approved list
+
+   d. Emit an event indicating the block was built by a particular TEE device
 
 1. **Invalidating a TEE Device**
 
@@ -53,9 +55,9 @@ You can find a [specification for the protocol here](https://github.com/flashbot
 
    a. Can only be done by the policy owner
 
-   b. Policy computes WorkloadId from registered TEE's report body
+   b. WorkloadId is computed externally from TEE's report body
 
-   c. Once added, TEE can prove it built blocks via "Verify Flashtestation Transaction"
+   c. Once added, TEEs with matching WorkloadId can prove they built blocks via "Verify Flashtestation Transaction"
 
 1. **Removing a WorkloadId from a Policy**
 
@@ -141,9 +143,6 @@ FLASHTESTATION_REGISTRY_ADDRESS=0x0000000000000000000000000000000000000042
 
 # this is an absolute path to the raw attestation quote, see the example at: script/raw_tdx_quotes/342ad26adb6185cda1aea67ee5f35e9cb5c9cec32b03e8d4382492ca35d53331e906b20edbe46d9337b7b2b2248c633cc2a3aeb3a0ce480dd22b5950860c8a2c
 PATH_TO_ATTESTATION_QUOTE=/some/path/quote.bin
-
-# path to user data file if your TEE includes extended attestation data
-PATH_TO_APP_DATA=/some/path/appdata.bin
 ```
 
 Then, to execute, run:
@@ -170,7 +169,8 @@ Before executing this script, provide correct values for the following env vars:
 # this is the contract BlockBuilderPolicy you deployed up above
 ADDRESS_BLOCK_BUILDER_POLICY=0x0000000000000000000000000000000000000042
 
-# this is the workload ID emitted in the event from the RegisterTEEScript up above
+# this is the workload ID computed from the TEE's measurement registers
+# You can compute this from a registered TEE's report body using BlockBuilderPolicy.workloadIdForTDRegistration
 WORKLOAD_ID=0xeee********************************************************9164e
 ```
 

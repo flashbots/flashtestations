@@ -30,7 +30,6 @@ library QuoteParser {
 
     error InvalidTEEType(bytes4 teeType);
     error InvalidTEEVersion(uint16 version);
-    error InvalidReportDataLength(uint256 length);
     error InvalidQuoteLength(uint256 length);
 
     /**
