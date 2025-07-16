@@ -10,11 +10,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
-// WorkloadID uniquely identifies a TEE workload. A workload is derived from a combination
-// of the TEE's measurement registers. The TDX platform provides several registers that
-// capture cryptographic hashes of code, data, and configuration loaded into the TEE's environment.
-// This means that whenever a TEE device changes anything about its compute stack (e.g. user code,
-// firmware, OS, etc), the workloadID will change.
+// WorkloadID uniquely identifies a TEE workload. A workload is roughly equivalent to a version of an application's
+// code, can be reproduced from source code, and is derived from a combination of the TEE's measurement registers.
+// The TDX platform provides several registers that capture cryptographic hashes of code, data, and configuration
+// loaded into the TEE's environment. This means that whenever a TEE device changes anything about its compute stack
+// (e.g. user code, firmware, OS, etc), the workloadID will change.
 // See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
 type WorkloadId is bytes32;
 
@@ -146,7 +146,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @param blockContentHash The hash of the block content
     /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
     /// and it is not needed to be called by other contracts
-	/// @dev We can't check the whole block content hash, but we could check the block number and parent hash
+    /// @dev We can't check the whole block content hash, but we could check the block number and parent hash
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         require(isSupportedVersion(version), UnsupportedVersion(version));
 
@@ -188,8 +188,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
             return (false, WorkloadId.wrap(0));
         }
 
-        // @dev: could be cached, but the gas saving might not be worth the effort (requires keeping track of the hash of the quote at the least)
-        WorkloadId workloadId = WorkloadIdForTDRegistration(registration);
+        WorkloadId workloadId = workloadIdForTDRegistration(registration);
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
             if (workloadId == WorkloadId.wrap(workloadIds.at(i))) {
                 return (true, workloadId);
@@ -199,8 +198,10 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         return (false, WorkloadId.wrap(0));
     }
 
-    // Application specific mapping of registration data, in particular the quote and attested app data, to a workload identifier
-    function WorkloadIdForTDRegistration(FlashtestationRegistry.RegisteredTEE memory registration)
+    // Application specific mapping of registration data to a workload identifier
+    // Think of the workload identifier as the version of the application for governance
+    // The workload id verifiably maps to a version of source code for the VM image
+    function workloadIdForTDRegistration(FlashtestationRegistry.RegisteredTEE memory registration)
         public
         pure
         returns (WorkloadId)
@@ -213,8 +214,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
                     registration.parsedReportBody.rtMr1,
                     registration.parsedReportBody.rtMr2,
                     registration.parsedReportBody.rtMr3,
-                    registration.parsedReportBody.mrOwner,
-                    registration.parsedReportBody.mrOwnerConfig,
                     registration.parsedReportBody.mrConfigId
                 )
             )
