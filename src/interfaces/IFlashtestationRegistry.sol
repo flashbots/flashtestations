@@ -13,15 +13,12 @@ interface IFlashtestationRegistry {
     struct RegisteredTEE {
         bool isValid; // true upon first registration, and false after a quote invalidation
         bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
-        bytes32 quoteHash; // Hash of the quote for use as an index
-        TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid parsing
-        bytes extendedRegistratioData; // Any additional attested data for application purposes
+        TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid unnecessary parsing
+        bytes extendedRegistrationData; // Any additional attested data for application purposes
     }
 
     // Events
-    event TEEServiceRegistered( /* dev: could be hash of the quote */
-        address teeAddress, bytes32 quoteHash, bool alreadyExists
-    );
+    event TEEServiceRegistered(address teeAddress, bytes32 quoteHash, bool alreadyExists);
     event TEEServiceInvalidated(address teeAddress, bytes32 quoteHash);
 
     // Errors

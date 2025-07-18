@@ -28,23 +28,17 @@ contract FlashtestationRegistry is
 {
     using ECDSA for bytes32;
 
-    struct TDConfigParams {
-        bytes8 xfamMask;
-        bytes8 tdAttributesMask;
-    }
-
-    TDConfigParams public tdConfigParams;
-
     // Constants
 
-    uint256 public constant TD_REPORTDATA_LENGTH = 52; // address + hash
+    // Minimum length of the td reportdata field: tee address (20) and hash of extended data (32)
+    uint256 public constant TD_REPORTDATA_LENGTH = 52;
 
     // Maximum size for byte arrays to prevent DoS attacks
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024; // 20KB limit
 
     // EIP-712 Constants
     bytes32 public constant REGISTER_TYPEHASH =
-        keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistratioData,uint256 nonce)");
+        keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistrationData,uint256 nonce)");
 
     // Storage Variables
 
@@ -71,17 +65,6 @@ contract FlashtestationRegistry is
         __Ownable_init(owner);
         __EIP712_init("FlashtestationRegistry", "1");
         attestationContract = IAttestation(_attestationContract);
-
-        // See section 13.5.3 in TDX module documentation
-        bytes8 xfam_fpu = 0x0000000000000001; // Enabled FPU (always enabled)
-        bytes8 xfam_sse = 0x0000000000000002; // Enabled SSE (always enabled)
-
-        // See section 22.2.1 in TDX module documentation
-        bytes8 tdattrs_ve_disabled = 0x0000000010000000; // Allows disabling of EPT violation conversion to #VE on access of PENDING pages
-        bytes8 tdattrs_pks = 0x0000000040000000; // Enabled Supervisor Protection Keys (PKS)
-
-        tdConfigParams =
-            TDConfigParams({xfamMask: xfam_fpu | xfam_sse, tdAttributesMask: tdattrs_ve_disabled | tdattrs_pks});
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -101,14 +84,14 @@ contract FlashtestationRegistry is
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistratioData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded attested data, application specific
      */
-    function registerTEEService(bytes calldata rawQuote, bytes calldata extendedRegistratioData)
+    function registerTEEService(bytes calldata rawQuote, bytes calldata extendedRegistrationData)
         external
         limitBytesSize(rawQuote)
         nonReentrant
     {
-        doRegister(msg.caller, rawQuote, extendedRegistratioData);
+        doRegister(msg.caller, rawQuote, extendedRegistrationData);
     }
 
     /**
@@ -119,18 +102,18 @@ contract FlashtestationRegistry is
      * instead can rely on any EOA to execute the transaction, but still only allow quotes from attested TEEs
      * @dev Replay is implicitly shielded against through the transaction's nonce (TEE must sign the new nonce)
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistratioData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded attested data, application specific
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
      * @param signature The EIP-712 signature of the registration message
      */
     function permitRegisterTEEService(
         bytes calldata rawQuote,
-        bytes calldata extendedRegistratioData,
+        bytes calldata extendedRegistrationData,
         uint256 nonce,
         bytes calldata signature
-    ) external limitBytesSize(rawQuote) limitBytesSize(extendedRegistratioData) nonReentrant {
+    ) external limitBytesSize(rawQuote) limitBytesSize(extendedRegistrationData) nonReentrant {
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
-        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistratioData, nonce));
+        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistrationData, nonce));
 
         // Recover the signer, and ensure it matches the TEE-controlled address, otherwise we have no proof
         // whoever created the attestation quote has access to the private key
@@ -143,7 +126,7 @@ contract FlashtestationRegistry is
         // Increment the nonce so that any attempts at replaying this transaction will fail
         nonces[signer]++;
 
-        doRegister(signer, rawQuote, extendedRegistratioData);
+        doRegister(signer, rawQuote, extendedRegistrationData);
     }
 
     /**
@@ -153,11 +136,9 @@ contract FlashtestationRegistry is
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param caller The address from which registration request originates, must match the one in the quote
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistratioData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded attested data, application specific
      */
-    function doRegister(address caller, bytes calldata rawQuote, bytes calldata extendedRegistratioData)
-        internal
-    {
+    function doRegister(address caller, bytes calldata rawQuote, bytes calldata extendedRegistrationData) internal {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
         if (!success) {
             revert InvalidQuote(output);
@@ -166,7 +147,6 @@ contract FlashtestationRegistry is
         // now we know the quote is valid, we can safely parse the output into the TDX report body,
         // from which we'll extract the data we need to register the TEE
         TD10ReportBody memory td10ReportBody = QuoteParser.parseV4VerifierOutput(output);
-        require(validateTDConfig(td10ReportBody), "invalid td config");
 
         // Binding the tee address and extended report data to the quote
         if (td10ReportBody.reportData.length < TD_REPORTDATA_LENGTH) {
@@ -176,7 +156,7 @@ contract FlashtestationRegistry is
         address teeAddress = address(td10ReportBody.reportData[0:20]);
 
         bytes memory extendedDataReportHash = td10ReportBody.reportData[20:52];
-        require(keccak256(extendedRegistratioData) == extendedDataReportHash, "invalid registration data hash");
+        require(keccak256(extendedRegistrationData) == extendedDataReportHash, "invalid registration data hash");
 
         bytes32 quoteHash = keccak256(rawQuote);
         bool previouslyRegistered = checkPreviousRegistration(teeAddress, quoteHash);
@@ -187,7 +167,7 @@ contract FlashtestationRegistry is
             rawQuote: rawQuote,
             quoteHash: quoteHash,
             parsedReportBody: td10ReportBody,
-            extendedRegistratioData: extendedRegistratioData,
+            extendedRegistrationData: extendedRegistrationData,
             isValid: true
         });
 
@@ -226,21 +206,8 @@ contract FlashtestationRegistry is
      * teeAddress in its reportData field was previously registered with the FlashtestationRegistry
      * using the registerTEEService function.
      */
-    function getRegistration(address teeAddress)
-        public
-        view
-        returns (bool isValid, RegisteredTEE memory registration)
-    {
-        isValid = false;
-        registration = registeredTEEs[teeAddress];
-
-        // re-validate td config since it's not too much gas and the config allowed can change
-        if (registeredTEEs[teeAddress].isValid && validateTDConfig(registration.parsedReportBody)) {
-            isValid = true;
-            return;
-        }
-
-        return;
+    function getRegistration(address teeAddress) public view returns (bool, RegisteredTEE memory) {
+        return (registeredTEEs[teeAddress].isValid, registeredTEEs[teeAddress]);
     }
 
     /**
@@ -293,19 +260,6 @@ contract FlashtestationRegistry is
         }
     }
 
-    function setTDConfigParams(bytes8 xfamMask, bytes8 tdAttributesMask) external onlyOwner {
-        tdConfigParams = TDConfigParams({xfamMask: xfamMask, tdAttributesMask: tdAttributesMask});
-        emit TDConfigParamsUpdated(xfamMask, tdAttributesMask);
-    }
-
-    event TDConfigParamsUpdated(bytes8 xfamMask, bytes8 tdAttributesMask);
-
-    // Checks tdAttributes and XFAM. Currently defaults to Intel's TCBLevels (rather than maintaining a tcbsvn allowlist).
-    function validateTDConfig(TD10ReportBody memory report) public view returns (bool) {
-        return report.xfam & (0xFFFFFFFFFFFFFFFF ^ tdConfigParams.xfamMask) == 0
-            && report.tdAttributes & (0xFFFFFFFFFFFFFFFF ^ tdConfigParams.tdAttributesMask) == 0;
-    }
-
     /**
      * @notice Computes the digest for the EIP-712 signature
      * @dev This is useful for when both onchain and offchain users want to compute the digest
@@ -322,15 +276,15 @@ contract FlashtestationRegistry is
      * @dev This is useful for when both onchain and offchain users want to compute the struct hash
      * for the EIP-712 signature, and then use it to verify the signature
      * @param rawQuote The raw quote from the TEE device
-     * @param extendedRegistratioData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded attested data, application specific
      * @param nonce The nonce to use for the EIP-712 signature
      * @return The struct hash for the EIP-712 signature
      */
-    function computeStructHash(bytes calldata rawQuote, bytes calldata extendedRegistratioData, uint256 nonce)
+    function computeStructHash(bytes calldata rawQuote, bytes calldata extendedRegistrationData, uint256 nonce)
         public
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(extendedRegistratioData), nonce));
+        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(extendedRegistrationData), nonce));
     }
 }
