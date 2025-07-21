@@ -77,12 +77,11 @@ contract AddMockQuoteScript is Script, DeploymentUtils {
         console.log("Successfully added mock quote to MockAutomataDcapAttestationFee");
 
         TD10ReportBody memory td10ReportBodyStruct = QuoteParser.parseV4VerifierOutput(output);
-        bytes memory publicKey = QuoteParser.extractPublicKey(td10ReportBodyStruct);
-        address teeAddress = address(uint160(uint256(keccak256(publicKey))));
+        (address teeAddress, bytes32 extDataHash) = QuoteParser.parseReportData(td10ReportBodyStruct.reportData);
 
         console.log("TEE address:");
         console.logAddress(teeAddress);
-        console.log("Public key (hex):");
-        console.logBytes(publicKey);
+        console.log("TEE extended report data hash:");
+        console.logBytes32(extDataHash);
     }
 }

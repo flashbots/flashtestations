@@ -68,10 +68,13 @@ contract RegisterTEEScript is Script, DeploymentUtils {
         // fetch the TEE-related data we just added, so the caller of this script can use
         // the outputs in future scripts (like Interactions.s.sol:AddWorkloadToPolicyScript)
         address sender = vm.getWallets()[0];
-        (,, bytes32 quoteHash,,) = registry.registeredTEEs(sender);
+        (, FlashtestationRegistry.RegisteredTEE memory teeRegistration) = registry.getRegistration(sender);
 
-        console.log("quoteHash:");
-        console.logBytes32(quoteHash);
+        BlockBuilderPolicy policy = BlockBuilderPolicy(vm.envAddress("ADDRESS_BLOCK_BUILDER_POLICY"));
+        WorkloadId workloadId = policy.workloadIdForTDRegistration(teeRegistration);
+
+        console.log("workloadId:");
+        console.logBytes32(WorkloadId.unwrap(workloadId));
 
         vm.stopBroadcast();
     }

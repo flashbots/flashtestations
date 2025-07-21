@@ -11,7 +11,6 @@ import {IAttestation} from "./interfaces/IAttestation.sol";
 import {IFlashtestationRegistry} from "./interfaces/IFlashtestationRegistry.sol";
 import {QuoteParser} from "./utils/QuoteParser.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
-import {TD_REPORT10_LENGTH, HEADER_LENGTH} from "automata-dcap-attestation/contracts/types/Constants.sol";
 
 /**
  * @title FlashtestationRegistry
@@ -91,7 +90,7 @@ contract FlashtestationRegistry is
         limitBytesSize(rawQuote)
         nonReentrant
     {
-        doRegister(msg.caller, rawQuote, extendedRegistrationData);
+        doRegister(msg.sender, rawQuote, extendedRegistrationData);
     }
 
     /**
@@ -153,9 +152,8 @@ contract FlashtestationRegistry is
             revert InvalidReportDataLength(td10ReportBody.reportData.length);
         }
 
-        address teeAddress = address(td10ReportBody.reportData[0:20]);
-
-        bytes memory extendedDataReportHash = td10ReportBody.reportData[20:52];
+        (address teeAddress, bytes32 extendedDataReportHash) = QuoteParser.parseReportData(td10ReportBody.reportData);
+        require(caller == teeAddress, "only the tee itself can register");
         require(keccak256(extendedRegistrationData) == extendedDataReportHash, "invalid registration data hash");
 
         bytes32 quoteHash = keccak256(rawQuote);
@@ -165,13 +163,12 @@ contract FlashtestationRegistry is
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
         registeredTEEs[teeAddress] = RegisteredTEE({
             rawQuote: rawQuote,
-            quoteHash: quoteHash,
             parsedReportBody: td10ReportBody,
             extendedRegistrationData: extendedRegistrationData,
             isValid: true
         });
 
-        emit TEEServiceRegistered(teeAddress, quoteHash, previouslyRegistered);
+        emit TEEServiceRegistered(teeAddress, rawQuote, previouslyRegistered);
     }
 
     /**
@@ -189,8 +186,8 @@ contract FlashtestationRegistry is
      * @return Whether the TEE is already registered but is updating its quote
      */
     function checkPreviousRegistration(address teeAddress, bytes32 quoteHash) internal view returns (bool) {
-        if (registeredTEEs[teeAddress].quoteHash == quoteHash) {
-            revert TEEServiceAlreadyRegistered(teeAddress, quoteHash);
+        if (keccak256(registeredTEEs[teeAddress].rawQuote) == quoteHash) {
+            revert TEEServiceAlreadyRegistered(teeAddress);
         }
 
         // if the TEE is already registered, but we're using a different quote,

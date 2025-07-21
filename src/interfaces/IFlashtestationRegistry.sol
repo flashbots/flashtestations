@@ -18,18 +18,18 @@ interface IFlashtestationRegistry {
     }
 
     // Events
-    event TEEServiceRegistered(address teeAddress, bytes32 quoteHash, bool alreadyExists);
-    event TEEServiceInvalidated(address teeAddress, bytes32 quoteHash);
+    event TEEServiceRegistered(address teeAddress, bytes rawQuote, bool alreadyExists);
+    event TEEServiceInvalidated(address teeAddress);
 
     // Errors
     error InvalidQuote(bytes output);
     error InvalidReportDataLength(uint256 length);
     error ByteSizeExceeded(uint256 size);
-    error TEEServiceAlreadyRegistered(address teeAddress, bytes32 quoteHash);
+    error TEEServiceAlreadyRegistered(address teeAddress);
     error SenderMustMatchTEEAddress(address sender, address teeAddress);
     error TEEServiceNotRegistered(address teeAddress);
     error TEEServiceAlreadyInvalid(address teeAddress);
-    error TEEIsStillValid(address teeAddress, bytes32 quoteHash);
+    error TEEIsStillValid(address teeAddress);
     error InvalidSignature();
     error InvalidNonce(uint256 expected, uint256 provided);
 }
