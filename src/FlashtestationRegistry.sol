@@ -153,8 +153,13 @@ contract FlashtestationRegistry is
         }
 
         (address teeAddress, bytes32 extendedDataReportHash) = QuoteParser.parseReportData(td10ReportBody.reportData);
-        require(caller == teeAddress, "only the tee itself can register");
-        require(keccak256(extendedRegistrationData) == extendedDataReportHash, "invalid registration data hash");
+        if (caller != teeAddress) {
+            revert SenderMustMatchTEEAddress(caller, teeAddress);
+        }
+        bytes32 extendedRegistrationDataHash = keccak256(extendedRegistrationData);
+        if (extendedRegistrationDataHash != extendedDataReportHash) {
+            revert InvalidRegistrationDataHash(extendedDataReportHash, extendedRegistrationDataHash);
+        }
 
         bytes32 quoteHash = keccak256(rawQuote);
         bool previouslyRegistered = checkPreviousRegistration(teeAddress, quoteHash);

@@ -28,56 +28,35 @@ contract BlockBuilderPolicyTest is Test {
     struct PolicyMockQuote {
         bytes output;
         bytes quote;
-        bytes publicKey;
         address teeAddress;
         WorkloadId workloadId;
         uint256 privateKey;
     }
 
-    PolicyMockQuote bf42Mock = PolicyMockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
-        ),
-        publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
+    PolicyMockQuote mockf200 = PolicyMockQuote({
+        output: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/quote.bin"),
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
-    PolicyMockQuote bf42MockWithDifferentWorkloadId = PolicyMockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output2.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote2.bin"
-        ),
-        publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
+    PolicyMockQuote mockf200WithDifferentWorkloadId = PolicyMockQuote({ // TODO!
+        output: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/output2.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/quote2.bin"),
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
         workloadId: WorkloadId.wrap(0x5e6be81f9e5b10d15a6fa69b19ab0269cd943db39fa1f0d38a76eb76146948cb),
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
-    PolicyMockQuote d204Mock = PolicyMockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/output.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote.bin"
-        ),
-        publicKey: hex"d204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6",
+    PolicyMockQuote mock12c1 = PolicyMockQuote({
+        output: vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/quote.bin"),
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
-    PolicyMockQuote mock7b91 = PolicyMockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/output.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/quote.bin"
-        ),
-        publicKey: hex"7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19",
+    PolicyMockQuote mock46f6 = PolicyMockQuote({
+        output: vm.readFileBinary("test/raw_tdx_quotes/0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF/quote.bin"),
         teeAddress: 0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
         privateKey: 0x92e4b5ed61db615b26da2271da5b47c42d691b3164561cfb4edbc85ca6ca61a8
@@ -111,73 +90,73 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_addWorkloadToPolicy_and_getters() public {
         // Add a workload
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
         // getWorkloads should return the workload
         bytes32[] memory workloads = policy.getWorkloads();
         assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
+        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
         // getWorkload(0) should return the same
         bytes32 workload = policy.getWorkload(0);
-        assertEq(workload, WorkloadId.unwrap(bf42Mock.workloadId));
+        assertEq(workload, WorkloadId.unwrap(mockf200.workloadId));
     }
 
     function test_addWorkloadToPolicy_with_multiple_workloads() public {
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
-        policy.addWorkloadToPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200WithDifferentWorkloadId.workloadId);
         bytes32[] memory workloads = policy.getWorkloads();
         assertEq(workloads.length, 2);
-        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
-        assertEq(workloads[1], WorkloadId.unwrap(bf42MockWithDifferentWorkloadId.workloadId));
+        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
+        assertEq(workloads[1], WorkloadId.unwrap(mockf200WithDifferentWorkloadId.workloadId));
     }
 
     function test_addWorkloadToPolicy_reverts_if_duplicate() public {
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
         vm.expectRevert(BlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
     }
 
     function test_addWorkloadToPolicy_reverts_if_not_owner() public {
         vm.prank(address(0x123));
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
     }
 
     function test_removeWorkloadFromPolicy() public {
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
-        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.removeWorkloadFromPolicy(mockf200.workloadId);
         bytes32[] memory workloads = policy.getWorkloads();
         assertEq(workloads.length, 0);
     }
 
     function test_removeWorkloadFromPolicy_with_multiple_workloads() public {
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
-        policy.addWorkloadToPolicy(bf42MockWithDifferentWorkloadId.workloadId);
-        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200WithDifferentWorkloadId.workloadId);
+        policy.removeWorkloadFromPolicy(mockf200.workloadId);
         bytes32[] memory workloads = policy.getWorkloads();
         assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(bf42MockWithDifferentWorkloadId.workloadId));
+        assertEq(workloads[0], WorkloadId.unwrap(mockf200WithDifferentWorkloadId.workloadId));
 
         // now remove the other workload
-        policy.removeWorkloadFromPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        policy.removeWorkloadFromPolicy(mockf200WithDifferentWorkloadId.workloadId);
         workloads = policy.getWorkloads();
         assertEq(workloads.length, 0);
 
         // now add the workloads back
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
         workloads = policy.getWorkloads();
         assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
-        policy.addWorkloadToPolicy(bf42MockWithDifferentWorkloadId.workloadId);
+        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
+        policy.addWorkloadToPolicy(mockf200WithDifferentWorkloadId.workloadId);
         workloads = policy.getWorkloads();
         assertEq(workloads.length, 2);
-        assertEq(workloads[0], WorkloadId.unwrap(bf42Mock.workloadId));
-        assertEq(workloads[1], WorkloadId.unwrap(bf42MockWithDifferentWorkloadId.workloadId));
+        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
+        assertEq(workloads[1], WorkloadId.unwrap(mockf200WithDifferentWorkloadId.workloadId));
     }
 
     function test_removeWorkloadFromPolicy_with_multiple_workloads_present() public {
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
         policy.addWorkloadToPolicy(arbitraryWorkloadId);
-        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        policy.removeWorkloadFromPolicy(mockf200.workloadId);
         bytes32[] memory workloads = policy.getWorkloads();
         assertEq(workloads.length, 1);
         assertEq(workloads[0], WorkloadId.unwrap(arbitraryWorkloadId));
@@ -188,129 +167,87 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_removeWorkloadFromPolicy_reverts_if_not_present() public {
         vm.expectRevert(BlockBuilderPolicy.WorkloadNotInPolicy.selector);
-        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        policy.removeWorkloadFromPolicy(mockf200.workloadId);
     }
 
     function test_removeWorkloadFromPolicy_reverts_if_not_owner() public {
         vm.prank(address(0x123));
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
-        policy.removeWorkloadFromPolicy(bf42Mock.workloadId);
+        policy.removeWorkloadFromPolicy(mockf200.workloadId);
     }
 
     function test_isAllowedPolicy_returns_true_for_valid_tee() public {
         // Register TEE and add workload to policy
-        _registerTEE(bf42Mock);
+        _registerTEE(mockf200);
 
         // Get the actual workloadId from the registration
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(bf42Mock.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
 
         // Add the actual workloadId to the policy
         policy.addWorkloadToPolicy(actualWorkloadId);
 
         // Should return true
-        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertTrue(allowed);
         assertEq(WorkloadId.unwrap(workloadId), WorkloadId.unwrap(actualWorkloadId));
     }
 
     function test_isAllowedPolicy_returns_false_for_unregistered_tee() public {
         // Add workload but do not register TEE
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
-        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_invalid_quote() public {
         // Register TEE
-        _registerTEE(bf42Mock);
+        _registerTEE(mockf200);
 
         // Get the actual workloadId and add to policy
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(bf42Mock.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
         policy.addWorkloadToPolicy(actualWorkloadId);
 
         // Now invalidate the TEE
-        attestationContract.setQuoteResult(bf42Mock.quote, false, new bytes(0));
-        registry.invalidateAttestation(bf42Mock.teeAddress);
+        attestationContract.setQuoteResult(mockf200.quote, false, new bytes(0));
+        registry.invalidateAttestation(mockf200.teeAddress);
 
         // Should return false
-        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_wrong_workload() public {
-        _registerTEE(bf42Mock);
+        _registerTEE(mockf200);
         policy.addWorkloadToPolicy(wrongWorkloadId);
-        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_invalid_tee_when_multiple_workloads_present() public {
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
         policy.addWorkloadToPolicy(wrongWorkloadId);
-        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(bf42Mock.teeAddress);
+        (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_workloadIdForTDRegistration() public {
         // Register a TEE
-        _registerTEE(bf42Mock);
+        _registerTEE(mockf200);
 
         // Get the registration
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(bf42Mock.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
 
         // Compute the workloadId
         WorkloadId computedWorkloadId = policy.workloadIdForTDRegistration(registration);
 
         // The computed workloadId should be deterministic based on the TD report fields
         assertTrue(WorkloadId.unwrap(computedWorkloadId) != 0, "WorkloadId should not be zero");
-    }
-
-    function test_workloadIdForTDRegistration_deterministic() public {
-        // Register the same TEE twice with different extended data
-        bytes memory mockOutput = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output.bin"
-        );
-        bytes memory mockQuote = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
-        );
-        address teeAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03;
-
-        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
-
-        // First registration
-        vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote, abi.encode("data1"));
-
-        (, IFlashtestationRegistry.RegisteredTEE memory reg1) = registry.getRegistration(teeAddress);
-        WorkloadId workloadId1 = policy.workloadIdForTDRegistration(reg1);
-
-        // Update with different extended data but same TD measurements
-        bytes memory mockQuote2 = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote2.bin"
-        );
-        bytes memory mockOutput2 = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output2.bin"
-        );
-
-        attestationContract.setQuoteResult(mockQuote2, true, mockOutput2);
-
-        vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote2, abi.encode("data2"));
-
-        (, IFlashtestationRegistry.RegisteredTEE memory reg2) = registry.getRegistration(teeAddress);
-        WorkloadId workloadId2 = policy.workloadIdForTDRegistration(reg2);
-
-        // WorkloadIds should be different because the TD measurements are different
-        assertTrue(
-            WorkloadId.unwrap(workloadId1) != WorkloadId.unwrap(workloadId2),
-            "WorkloadIds should differ for different TD measurements"
-        );
     }
 
     function test_getWorkload_reverts_on_out_of_bounds() public {
@@ -320,45 +257,45 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_verifyBlockBuilderProof_fails_with_incorrect_version() public {
-        _registerTEE(bf42Mock);
+        _registerTEE(mockf200);
 
         // Get actual workloadId and add to policy
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(bf42Mock.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
         policy.addWorkloadToPolicy(actualWorkloadId);
 
         // Try with unsupported version 2
-        vm.prank(bf42Mock.teeAddress);
+        vm.prank(mockf200.teeAddress);
         vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, 2));
         policy.verifyBlockBuilderProof(2, bytes32(0));
     }
 
     function test_verifyBlockBuilderProof_fails_with_unregistered_tee() public {
         // Add workload to policy but don't register TEE
-        policy.addWorkloadToPolicy(bf42Mock.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId);
 
-        vm.prank(bf42Mock.teeAddress);
+        vm.prank(mockf200.teeAddress);
         vm.expectRevert(
-            abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, bf42Mock.teeAddress)
+            abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, mockf200.teeAddress)
         );
         policy.verifyBlockBuilderProof(1, bytes32(0));
     }
 
     function test_verifyBlockBuilderProof_succeeds_with_valid_tee_and_version() public {
-        _registerTEE(bf42Mock);
+        _registerTEE(mockf200);
 
         // Get actual workloadId and add to policy
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(bf42Mock.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
         policy.addWorkloadToPolicy(actualWorkloadId);
 
         bytes32 blockContentHash = bytes32(hex"1234");
         vm.expectEmit(address(policy));
         emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            bf42Mock.teeAddress, actualWorkloadId, block.number, 1, blockContentHash
+            mockf200.teeAddress, actualWorkloadId, block.number, 1, blockContentHash
         );
 
-        vm.prank(bf42Mock.teeAddress);
+        vm.prank(mockf200.teeAddress);
         policy.verifyBlockBuilderProof(1, blockContentHash);
     }
 
@@ -383,11 +320,11 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_successful_permitVerifyBlockBuilderProof() public {
-        address teeAddress = mock7b91.teeAddress;
+        address teeAddress = mock46f6.teeAddress;
         bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
 
         // Register TEE
-        _registerTEE(mock7b91);
+        _registerTEE(mock46f6);
 
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
@@ -397,7 +334,7 @@ contract BlockBuilderPolicyTest is Test {
         // Create the EIP-712 signature
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
         bytes32 digest = policy.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Expect the event to be emitted
@@ -414,11 +351,11 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_successful_permitVerifyBlockBuilderProof_multiple_times() public {
-        address teeAddress = mock7b91.teeAddress;
+        address teeAddress = mock46f6.teeAddress;
         bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
 
         // Register TEE
-        _registerTEE(mock7b91);
+        _registerTEE(mock46f6);
 
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
@@ -428,7 +365,7 @@ contract BlockBuilderPolicyTest is Test {
         // Create the EIP-712 signature
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
         bytes32 digest = policy.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Expect the event to be emitted
@@ -447,7 +384,7 @@ contract BlockBuilderPolicyTest is Test {
 
         structHash = policy.computeStructHash(version, blockContentHash, 1);
         digest = policy.getHashedTypeDataV4(structHash);
-        (v, r, s) = vm.sign(mock7b91.privateKey, digest);
+        (v, r, s) = vm.sign(mock46f6.privateKey, digest);
         signature = abi.encodePacked(r, s, v);
 
         // Expect the event to be emitted
@@ -484,7 +421,7 @@ contract BlockBuilderPolicyTest is Test {
         // Create signature with wrong nonce
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 1); // wrong nonce
         bytes32 digest = policy.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidNonce.selector, 0, 1));
@@ -495,17 +432,17 @@ contract BlockBuilderPolicyTest is Test {
         bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
 
         // Register TEE
-        _registerTEE(mock7b91);
+        _registerTEE(mock46f6);
 
         // Get actual workloadId and add to policy
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mock7b91.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mock46f6.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
         policy.addWorkloadToPolicy(actualWorkloadId);
 
         // Create the EIP-712 signature
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
         bytes32 digest = policy.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // First verification should succeed
@@ -523,7 +460,7 @@ contract BlockBuilderPolicyTest is Test {
         uint8 unsupportedVersion = 2;
         bytes32 structHash = policy.computeStructHash(unsupportedVersion, blockContentHash, 0);
         bytes32 digest = policy.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, unsupportedVersion));

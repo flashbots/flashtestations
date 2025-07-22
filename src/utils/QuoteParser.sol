@@ -17,9 +17,6 @@ library QuoteParser {
     // The TDX version of the quote Flashtestation's accepts
     uint256 public constant ACCEPTED_TDX_VERSION = 4;
 
-    // The length of the Ethereum uncompressed public key in bytes
-    uint256 public constant ETHEREUM_PUBLIC_KEY_LENGTH = 64;
-
     // This is the number of bytes in the Output struct that come before the quoteBody.
     // See the Output struct definition in the Automata DCAP Attestation repo:
     // https://github.com/automata-network/automata-dcap-attestation/blob/evm-v1.0.0/evm/contracts/types/CommonStruct.sol#L113
@@ -88,7 +85,7 @@ library QuoteParser {
         report.rtMr1 = rawReportBody.substring(376, 48);
         report.rtMr2 = rawReportBody.substring(424, 48);
         report.rtMr3 = rawReportBody.substring(472, 48);
-        report.reportData = rawReportBody.substring(520, ETHEREUM_PUBLIC_KEY_LENGTH);
+        report.reportData = rawReportBody.substring(520, 64);
     }
 
     /**
@@ -100,7 +97,7 @@ library QuoteParser {
         returns (address teeAddress, bytes32 extDataHash)
     {
         teeAddress = address(uint160(bytes20(reportDataBytes.substring(0, 20))));
-        extDataHash = bytes32(reportDataBytes.substring(20, 52));
+        extDataHash = bytes32(reportDataBytes.substring(20, 32));
     }
 
     /**
@@ -121,7 +118,7 @@ library QuoteParser {
      * @dev Automata currently only supports SGX and TDX TEE types
      */
     function checkTEEType(bytes memory rawReportBody) internal pure {
-        bytes4 teeType = bytes4(rawReportBody.substring(2, 6)); // 4 bytes
+        bytes4 teeType = bytes4(rawReportBody.substring(2, 4)); // 4 bytes
         if (teeType != TDX_TEE) {
             revert InvalidTEEType(teeType);
         }

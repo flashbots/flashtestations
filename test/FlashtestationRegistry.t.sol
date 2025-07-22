@@ -20,8 +20,8 @@ import {Output} from "automata-dcap-attestation/contracts/types/CommonStruct.sol
 struct MockQuote {
     bytes output;
     bytes quote;
+    bytes extData;
     address teeAddress;
-    bytes publicKey;
     uint256 privateKey;
 }
 
@@ -30,47 +30,31 @@ contract FlashtestationRegistryTest is Test {
     FlashtestationRegistry public registry;
     Upgrader public upgrader = new Upgrader();
     MockAutomataDcapAttestationFee public attestationContract;
-    MockQuote bf42Mock = MockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
-        ),
-        publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
+    MockQuote mockf200 = MockQuote({
+        output: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/quote.bin"),
+        extData: bytes(""),
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
-    MockQuote bf42MockWithDifferentWorkloadId = MockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output2.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote2.bin"
-        ),
-        publicKey: hex"bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446",
-        teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
+    MockQuote mockc200 = MockQuote({ // non-empty ext data
+        output: vm.readFileBinary("test/raw_tdx_quotes/0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04/quote.bin"),
+        extData: bytes("xxxxxxxx"),
+        teeAddress: 0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04,
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
-    MockQuote d204Mock = MockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/output.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote.bin"
-        ),
-        publicKey: hex"d204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6",
+    MockQuote mock12c1 = MockQuote({
+        output: vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/quote.bin"),
+        extData: bytes(""),
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
         privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
     });
-    MockQuote mock7b91 = MockQuote({
-        output: vm.readFileBinary(
-            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/output.bin"
-        ),
-        quote: vm.readFileBinary(
-            "test/raw_tdx_quotes/7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19/quote.bin"
-        ),
-        publicKey: hex"7b916d70ed77488d6c1ced7117ba410655a8faa8d6c7740562a88ab3cb9cbca63e2d5761812a11d90c009ed017113131370070cd3a2d5fba64d9dbb76952df19",
+    MockQuote mock46f6 = MockQuote({
+        output: vm.readFileBinary("test/raw_tdx_quotes/0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF/output.bin"),
+        quote: vm.readFileBinary("test/raw_tdx_quotes/0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF/quote.bin"),
+        extData: bytes(""),
         teeAddress: 0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF,
         privateKey: 0x92e4b5ed61db615b26da2271da5b47c42d691b3164561cfb4edbc85ca6ca61a8
     });
@@ -90,20 +74,17 @@ contract FlashtestationRegistryTest is Test {
     function test_successful_registerTEEService() public {
         // first get a valid attestation quote stored
 
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address expectedAddress = mockf200.teeAddress;
 
         // set the attestation contract to return a successful attestation
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        // Create extended registration data
-        bytes memory extendedData = abi.encode("test data", uint256(123));
-
         vm.expectEmit(address(registry));
         emit IFlashtestationRegistry.TEEServiceRegistered(expectedAddress, mockQuote, false);
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, extendedData);
+        registry.registerTEEService(mockQuote, mockf200.extData);
 
         // Get the registration
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
@@ -111,25 +92,23 @@ contract FlashtestationRegistryTest is Test {
 
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(registration.rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registration.extendedRegistrationData, extendedData, "Extended data mismatch");
+        vm.assertEq(registration.extendedRegistrationData, mockf200.extData, "Extended data mismatch");
         vm.assertEq(registration.isValid, true, "Registration should be valid");
     }
 
     // test that we can register the same TEEService again with a different quote
     function test_successful_re_registerTEEService() public {
         // do the first register of the TEEService with a valid quote
-        bytes memory mockOutput = d204Mock.output;
-        bytes memory mockQuote = d204Mock.quote;
-        address expectedAddress = d204Mock.teeAddress;
+        bytes memory mockOutput = mock12c1.output;
+        bytes memory mockQuote = mock12c1.quote;
+        address expectedAddress = mock12c1.teeAddress;
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
-
-        bytes memory extendedData = abi.encode("initial data");
 
         vm.expectEmit(address(registry));
         emit IFlashtestationRegistry.TEEServiceRegistered(expectedAddress, mockQuote, false);
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, extendedData);
+        registry.registerTEEService(mockQuote, mock12c1.extData);
 
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
             registry.getRegistration(expectedAddress);
@@ -138,89 +117,43 @@ contract FlashtestationRegistryTest is Test {
 
         // now register the same TEEService again with a different quote
 
-        bytes memory mockQuote2 = vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/quote2.bin"
-        );
-        bytes memory mockOutput2 = vm.readFileBinary(
-            "test/raw_tdx_quotes/0xd204547069c53f9ecff9b30494eb9797615a2f46aa2785db6258104cebb92d48ff4dc0744c36d8470646f4813e61f9a831ffb54b937f7b233f32d271434ccca6/output2.bin"
-        );
+        bytes memory mockQuote2 =
+            vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/quote2.bin");
+        bytes memory mockOutput2 =
+            vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/output2.bin");
         attestationContract.setQuoteResult(mockQuote2, true, mockOutput2);
-
-        bytes memory extendedData2 = abi.encode("updated data");
 
         vm.expectEmit(address(registry));
         emit IFlashtestationRegistry.TEEServiceRegistered(expectedAddress, mockQuote2, true);
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote2, extendedData2);
+        registry.registerTEEService(mockQuote2, mock12c1.extData);
 
         (bool isValid2, IFlashtestationRegistry.RegisteredTEE memory registration2) =
             registry.getRegistration(expectedAddress);
         vm.assertEq(isValid2, true, "TEE should be valid");
         vm.assertEq(registration2.rawQuote, mockQuote2, "Raw quote mismatch");
-        vm.assertEq(registration2.extendedRegistrationData, extendedData2, "Extended data mismatch");
-        vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
-    }
-
-    function test_successful_re_registerTEEService_with_different_workload_ids() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        bytes memory expectedPublicKey = bf42Mock.publicKey;
-        address expectedAddress = bf42Mock.teeAddress;
-
-        // set the attestation contract to return a successful attestation
-        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
-
-        bytes memory extendedData = abi.encode("initial");
-
-        vm.expectEmit(address(registry));
-        emit IFlashtestationRegistry.TEEServiceRegistered(expectedAddress, mockQuote, false);
-        vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, extendedData);
-
-        (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
-            registry.getRegistration(expectedAddress);
-        vm.assertEq(isValid, true, "TEE should be valid");
-        vm.assertEq(registration.rawQuote, mockQuote, "Raw quote mismatch");
-
-        // now register the same TEE-controlled address again with a different quote and workloadId
-
-        bytes memory mockOutput2 = bf42MockWithDifferentWorkloadId.output;
-        bytes memory mockQuote2 = bf42MockWithDifferentWorkloadId.quote;
-        expectedPublicKey = bf42MockWithDifferentWorkloadId.publicKey;
-        attestationContract.setQuoteResult(mockQuote2, true, mockOutput2);
-
-        bytes memory extendedData2 = abi.encode("updated");
-
-        vm.expectEmit(address(registry));
-        emit IFlashtestationRegistry.TEEServiceRegistered(expectedAddress, mockQuote2, true);
-        vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote2, extendedData2);
-
-        (bool isValid2, IFlashtestationRegistry.RegisteredTEE memory registration2) =
-            registry.getRegistration(expectedAddress);
-        vm.assertEq(isValid2, true, "TEE should be valid");
-        vm.assertEq(registration2.rawQuote, mockQuote2, "Raw quote mismatch");
+        vm.assertEq(registration2.extendedRegistrationData, mock12c1.extData, "Extended data mismatch");
         vm.assertNotEq(mockQuote, mockQuote2, "Quotes should not be the same");
     }
 
     function test_reverts_with_invalid_quote_registerTEEService() public {
-        bytes memory mockQuote = bf42Mock.quote;
+        bytes memory mockQuote = mockf200.quote;
         attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
 
         vm.expectPartialRevert(IFlashtestationRegistry.InvalidQuote.selector); // the "partial" just means we don't care about the bytes argument to InvalidQuote(bytes)
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
     function test_reverts_with_registering_same_quote_twice() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address expectedAddress = mockf200.teeAddress;
         bytes32 expectedQuoteHash = keccak256(mockQuote);
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -228,12 +161,12 @@ contract FlashtestationRegistryTest is Test {
             )
         );
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
     function test_reverts_with_invalid_quote_version() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
 
         Output memory output = Helper.deserializeOutput(mockOutput);
         output.quoteVersion = 0x0000;
@@ -241,12 +174,12 @@ contract FlashtestationRegistryTest is Test {
 
         attestationContract.setQuoteResult(mockQuote, true, serializedOutput);
         vm.expectRevert(QuoteParser.InvalidTEEVersion.selector, 0);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
     function test_reverts_with_invalid_tee_type() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
 
         Output memory output = Helper.deserializeOutput(mockOutput);
         output.tee = bytes4(0x00000000);
@@ -254,22 +187,22 @@ contract FlashtestationRegistryTest is Test {
 
         attestationContract.setQuoteResult(mockQuote, true, serializedOutput);
         vm.expectRevert(QuoteParser.InvalidTEEType.selector, 0);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
     function test_reverts_with_too_large_quote() public {
-        bytes memory mockQuote = bf42Mock.quote;
+        bytes memory mockQuote = mockf200.quote;
 
         // take a 4.9K file and concatenate it 5 times to make it over the 20KB limit
         bytes memory tooLargeQuote = abi.encodePacked(mockQuote, mockQuote, mockQuote, mockQuote, mockQuote);
         vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.ByteSizeExceeded.selector, tooLargeQuote.length));
-        registry.registerTEEService(tooLargeQuote, bytes(""));
+        registry.registerTEEService(tooLargeQuote, mockf200.extData);
     }
 
     function test_reverts_when_sender_does_not_match_tee_address() public {
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address expectedAddress = mockf200.teeAddress;
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
@@ -281,39 +214,37 @@ contract FlashtestationRegistryTest is Test {
                 IFlashtestationRegistry.SenderMustMatchTEEAddress.selector, differentAddress, expectedAddress
             )
         );
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
     function test_getRegistration_returns_true_for_valid_registration() public {
         // First register a valid TEE
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address expectedAddress = mockf200.teeAddress;
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        bytes memory extendedData = abi.encode("test");
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, extendedData);
+        registry.registerTEEService(mockQuote, mockf200.extData);
 
         // Now check that getRegistration returns valid data
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
             registry.getRegistration(expectedAddress);
         assertTrue(isValid, "getRegistration should return true for valid TEE");
         assertEq(registration.rawQuote, mockQuote, "Quote should match");
-        assertEq(registration.extendedRegistrationData, extendedData, "Extended data should match");
     }
 
     function test_getRegistration_returns_false_for_invalid_tee() public {
         // First register a valid TEE
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address expectedAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address expectedAddress = mockf200.teeAddress;
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
 
         // Now invalidate the TEE
         attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
@@ -344,12 +275,12 @@ contract FlashtestationRegistryTest is Test {
 
     function test_invalidateAttestation_reverts_if_already_invalid() public {
         // Register a valid TEE
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address teeAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address teeAddress = mockf200.teeAddress;
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
 
         // Now, invalidate with success==false (should invalidate)
         attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
@@ -363,13 +294,13 @@ contract FlashtestationRegistryTest is Test {
 
     function test_invalidateAttestation_reverts_if_still_valid() public {
         // Register a valid TEE
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address teeAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address teeAddress = mockf200.teeAddress;
         bytes32 quoteHash = keccak256(mockQuote);
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
         // Now, invalidate with success==true (still valid)
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
@@ -379,13 +310,13 @@ contract FlashtestationRegistryTest is Test {
 
     function test_invalidateAttestation_invalidates_and_emits_event() public {
         // Register a valid TEE
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address teeAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address teeAddress = mockf200.teeAddress;
         bytes32 quoteHash = keccak256(mockQuote);
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
         // Now, invalidate with success==false (should invalidate)
         attestationContract.setQuoteResult(mockQuote, false, new bytes(0));
         vm.expectEmit(address(registry));
@@ -398,9 +329,9 @@ contract FlashtestationRegistryTest is Test {
 
     function test_extended_registration_data_validation() public {
         // Test that extended registration data hash must match reportData[20:52]
-        bytes memory mockOutput = bf42Mock.output;
-        bytes memory mockQuote = bf42Mock.quote;
-        address teeAddress = bf42Mock.teeAddress;
+        bytes memory mockOutput = mockc200.output;
+        bytes memory mockQuote = mockc200.quote;
+        address teeAddress = mockc200.teeAddress;
 
         // Parse the output to get the report body
         TD10ReportBody memory reportBody = QuoteParser.parseV4VerifierOutput(mockOutput);
@@ -411,18 +342,20 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(teeAddress);
-        vm.expectRevert("invalid registration data hash");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IFlashtestationRegistry.InvalidRegistrationDataHash.selector,
+                keccak256(mockc200.extData),
+                keccak256(invalidExtendedData)
+            )
+        );
         registry.registerTEEService(mockQuote, invalidExtendedData);
     }
 
     function test_parsedReportBody_stored_correctly() public {
-        bytes memory mockOutput = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output.bin"
-        );
-        bytes memory mockQuote = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
-        );
-        address teeAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03;
+        bytes memory mockOutput = mockf200.output;
+        bytes memory mockQuote = mockf200.quote;
+        address teeAddress = mockf200.teeAddress;
 
         // Parse expected report body
         TD10ReportBody memory expectedReportBody = QuoteParser.parseV4VerifierOutput(mockOutput);
@@ -430,7 +363,7 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockf200.extData);
 
         // Get stored report body
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
@@ -446,63 +379,62 @@ contract FlashtestationRegistryTest is Test {
 
     function test_data_extracted_from_reportData() public {
         // This test verifies that the TEE address is properly extracted from reportData[0:20]
-        bytes memory mockOutput = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output.bin"
-        );
-        bytes memory mockQuote = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
-        );
+        bytes memory mockOutput = mockc200.output;
+        bytes memory mockQuote = mockc200.quote;
 
         // Parse the output to verify the expected address
         TD10ReportBody memory reportBody = QuoteParser.parseV4VerifierOutput(mockOutput);
         (address extractedAddress, bytes32 extractedExtDataHash) = QuoteParser.parseReportData(reportBody.reportData);
 
-        address expectedAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03;
+        address expectedAddress = mockc200.teeAddress;
         assertEq(extractedAddress, expectedAddress, "Address should be extracted from reportData[0:20]");
 
-        bytes memory expectedExtendedData = "";
-        require(keccak256(expectedExtendedData) == extractedExtDataHash, "Test data mismatch");
+        require(keccak256(mockc200.extData) == extractedExtDataHash, "Test data mismatch");
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Can only register from the address in the quote
         vm.prank(expectedAddress);
-        registry.registerTEEService(mockQuote, bytes(""));
+        registry.registerTEEService(mockQuote, mockc200.extData);
 
         // Verify it was registered to the correct address
-        (bool isValid,) = registry.getRegistration(expectedAddress);
+        (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
+            registry.getRegistration(expectedAddress);
         assertTrue(isValid);
+        assertEq(registration.extendedRegistrationData, mockc200.extData);
     }
 
-    function test_extendedRegistrationData_stored_correctly() public {
-        // Use real test data
-        bytes memory mockOutput = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/output.bin"
-        );
-        bytes memory mockQuote = vm.readFileBinary(
-            "test/raw_tdx_quotes/bf42a348f49c9f8ab2ef750ddaffd294c45d8adf947e4d1a72158dcdbd6997c2ca7decaa1ad42648efebdfefe79cbc1b63eb2499fe2374648162fd8f5245f446/quote.bin"
-        );
-        address teeAddress = 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03;
+    function test_extDataMismatch() public {
+        // This test verifies that the TEE address is properly extracted from reportData[0:20]
+        bytes memory mockOutput =
+            vm.readFileBinary("test/raw_tdx_quotes/0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04/output.bin");
+        bytes memory mockQuote =
+            vm.readFileBinary("test/raw_tdx_quotes/0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04/quote.bin");
 
-        // Create complex extended data
-        bytes memory extData = abi.encode("xxxxxxxx");
-        bytes memory encodedExtData = abi.encode(extData);
+        // Parse the output to verify the expected address
+        TD10ReportBody memory reportBody = QuoteParser.parseV4VerifierOutput(mockOutput);
+        (address extractedAddress, bytes32 extractedExtDataHash) = QuoteParser.parseReportData(reportBody.reportData);
+
+        address expectedAddress = 0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04;
+        assertEq(extractedAddress, expectedAddress, "Address should be extracted from reportData[0:20]");
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        vm.prank(teeAddress);
-        registry.registerTEEService(mockQuote, encodedExtData);
-
-        // Verify extended data was stored
-        (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
-
-        assertTrue(isValid);
-        assertEq(registration.extendedRegistrationData, encodedExtData);
+        // Can only register from the address in the quote
+        vm.prank(expectedAddress);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IFlashtestationRegistry.InvalidRegistrationDataHash.selector,
+                keccak256(mockc200.extData),
+                keccak256(bytes("xxxx"))
+            )
+        );
+        registry.registerTEEService(mockQuote, bytes("xxxx"));
     }
 
     function test_reportdata_length_validation() public {
         // Create a mock quote with reportData shorter than 52 bytes
-        bytes memory mockQuote = bf42Mock.quote;
+        bytes memory mockQuote = mockf200.quote;
 
         // Create a mock output with short reportData
         bytes memory shortReportData = new bytes(30); // Less than TD_REPORTDATA_LENGTH (52)
@@ -539,7 +471,7 @@ contract FlashtestationRegistryTest is Test {
     /// forge-config: default.allow_internal_expect_revert = true
     function test_parseV4Quote_reverts_on_invalid_length() public {
         // Use a quote of invalid length (e.g., one byte too short)
-        bytes memory validRawQuote = bf42Mock.quote;
+        bytes memory validRawQuote = mockf200.quote;
         bytes memory shortQuote = new bytes(TD_REPORT10_LENGTH + HEADER_LENGTH - 1);
         for (uint256 i = 0; i < shortQuote.length; i++) {
             shortQuote[i] = validRawQuote[i];
@@ -571,19 +503,17 @@ contract FlashtestationRegistryTest is Test {
 
     function test_successful_permitRegisterTEEService() public {
         // First get a valid attestation quote stored
-        bytes memory mockOutput = mock7b91.output;
-        bytes memory mockQuote = mock7b91.quote;
-        address expectedAddress = mock7b91.teeAddress;
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
+        address expectedAddress = mock46f6.teeAddress;
 
         // Set the attestation contract to return a successful attestation
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        bytes memory extendedData = abi.encode("permit test");
-
         // Create the EIP-712 signature
-        bytes32 structHash = registry.computeStructHash(mockQuote, extendedData, 0);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0);
         bytes32 digest = registry.hashTypedDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // Register the TEE
@@ -592,27 +522,25 @@ contract FlashtestationRegistryTest is Test {
 
         // the caller here is unspecified (i.e. no vm.prank), so if it succeeds
         // it means any address can call this function (assuming they have the correct signature)
-        registry.permitRegisterTEEService(mockQuote, extendedData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
 
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
             registry.getRegistration(expectedAddress);
         vm.assertEq(isValid, true, "TEE should be valid");
         vm.assertEq(registration.rawQuote, mockQuote, "Raw quote mismatch");
-        vm.assertEq(registration.extendedRegistrationData, extendedData, "Extended data mismatch");
+        vm.assertEq(registration.extendedRegistrationData, mock46f6.extData, "Extended data mismatch");
         vm.assertEq(registry.nonces(expectedAddress), 1, "Nonce should be incremented");
     }
 
     function test_permitRegisterTEEService_reverts_with_invalid_signature() public {
-        bytes memory mockOutput = mock7b91.output;
-        bytes memory mockQuote = mock7b91.quote;
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
         (, uint256 invalid_pk) = makeAddrAndKey("invalid_signer");
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        bytes memory extendedData = abi.encode("test");
-
         // Create the EIP-712 signature with wrong private key
-        bytes32 structHash = registry.computeStructHash(mockQuote, extendedData, 0);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0);
         bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalid_pk, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -620,46 +548,42 @@ contract FlashtestationRegistryTest is Test {
         // The function doesn't revert with InvalidSignature anymore, it reverts during
         // the registration process when checking caller vs teeAddress
         vm.expectRevert();
-        registry.permitRegisterTEEService(mockQuote, extendedData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
     }
 
     function test_permitRegisterTEEService_reverts_with_invalid_nonce() public {
-        bytes memory mockOutput = mock7b91.output;
-        bytes memory mockQuote = mock7b91.quote;
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        bytes memory extendedData = abi.encode("test");
-
         // Create the EIP-712 signature
-        bytes32 structHash = registry.computeStructHash(mockQuote, extendedData, 1); // wrong nonce
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 1); // wrong nonce
         bytes32 digest = registry.hashTypedDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 0, 1));
-        registry.permitRegisterTEEService(mockQuote, extendedData, 1, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 1, signature);
     }
 
     function test_permitRegisterTEEService_reverts_with_replayed_signature() public {
-        bytes memory mockOutput = mock7b91.output;
-        bytes memory mockQuote = mock7b91.quote;
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        bytes memory extendedData = abi.encode("test");
-
         // Create the EIP-712 signature
-        bytes32 structHash = registry.computeStructHash(mockQuote, extendedData, 0);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0);
         bytes32 digest = registry.hashTypedDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock7b91.privateKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // First registration should succeed
-        registry.permitRegisterTEEService(mockQuote, extendedData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
 
         // Try to replay the same signature
         vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 1, 0));
-        registry.permitRegisterTEEService(mockQuote, extendedData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
     }
 }

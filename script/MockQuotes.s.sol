@@ -3,11 +3,78 @@ pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
+import {IAttestation} from "../src/interfaces/IAttestation.sol";
 import {MockAutomataDcapAttestationFee} from "../test/mocks/MockAutomataDcapAttestationFee.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
 import {QuoteParser} from "../src/utils/QuoteParser.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
+
+contract MakeReportData is Script, DeploymentUtils {
+    function setUp() public {}
+
+    function run() public {
+        address teeAddress = vm.envAddress("TEE_ADDRESS");
+        console.logBytes(abi.encodePacked(teeAddress, keccak256("")));
+    }
+}
+
+// Fetches quote from a remote provider (dummy dcap), and saves it to script/raw_tdx_quotes/<address>/quote.bin
+contract FetchRemoteQuote is Script, DeploymentUtils {
+    function setUp() public {}
+
+    function run() public {
+        address teeAddress = vm.envAddress("TEE_ADDRESS");
+        string memory pathToQuote = string.concat("script/raw_tdx_quotes/", vm.toString(teeAddress), "/quote.bin");
+        vm.createDir(string.concat("script/raw_tdx_quotes/", vm.toString(teeAddress)), true);
+
+        string memory teeAddressStr = vm.toString(teeAddress);
+        string memory extDataHashStr = vm.toString(keccak256(""));
+        string memory reportData = string.concat(substring(teeAddressStr, 2, 40), substring(extDataHashStr, 2, 64));
+
+        string[] memory inputs = new string[](5);
+        inputs[0] = "curl";
+        inputs[1] = "--silent";
+        inputs[2] = "--output";
+        inputs[3] = pathToQuote;
+        inputs[4] = string.concat("http://ns31695324.ip-141-94-163.eu:10080/attest/", reportData);
+
+        bytes memory res = vm.ffi(inputs);
+        console.log("saved response to ", pathToQuote);
+    }
+}
+
+// Verifies quote from script/raw_tdx_quotes/<address>/quote.bin and saves the verification output  in the same directory as output.bin
+contract VerifyQuoteOnchain is Script, DeploymentUtils {
+    function setUp() public {}
+
+    function run() public {
+        address teeAddress = vm.envAddress("TEE_ADDRESS");
+        string memory pathToQuote = string.concat("script/raw_tdx_quotes/", vm.toString(teeAddress), "/quote.bin");
+        bytes memory quote = vm.readFileBinary(pathToQuote);
+
+        address attestationAddress = vm.envAddress("DCAP_ATTESTATION_ADDRESS");
+        IAttestation attestationContract = IAttestation(attestationAddress);
+
+        etchECDSAPrecompile(); // this is required to get the output from the real attestation contract
+        (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(quote);
+        console.log("Success: ", success);
+        console.log("Output (hex): ", vm.toString(output));
+
+        string memory pathToOutput = string.concat("script/raw_tdx_quotes/", vm.toString(teeAddress), "/output.bin");
+        vm.writeFileBinary(pathToOutput, output);
+        console.log("Saved verification binary output to ", pathToOutput);
+    }
+}
+
+function substring(string memory str, uint256 startIndex, uint256 len) returns (string memory) {
+    bytes memory strBytes = bytes(str);
+    bytes memory result = new bytes(len);
+    for (uint256 i = startIndex; i < startIndex + len; i++) {
+        result[i - startIndex] = strBytes[i];
+    }
+    return string(result);
+}
 
 /**
  * @title AddMockQuote

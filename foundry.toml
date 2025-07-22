@@ -8,7 +8,7 @@ ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
-fs_permissions = [{ access = "read", path = "foundry-out/" }, {access = "read", path = "test/raw_tdx_quotes/"}, {access = "read", path = "script/raw_tdx_quotes/"}]
+fs_permissions = [{ access = "read", path = "foundry-out/" }, {access = "read", path = "test/raw_tdx_quotes/"}, {access = "readwrite", path = "script/raw_tdx_quotes/"}]
 evm_version = "prague"
 gas_limit = "3000000000"
 fuzz_runs = 10_000
