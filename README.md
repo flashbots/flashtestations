@@ -29,10 +29,11 @@ You can find a [specification for the protocol here](https://github.com/flashbot
    b. Verify TEE Quote
 
    c. Extract and store:
-      - TEE address (from reportData[0:20])
-      - Extended registration data for the application to use (keccak of the extended data must match reportData[20:52])
-      - Full parsed report body for cheap access to TD report data fields
-      - Raw quote for future invalidation
+
+   - TEE address (from reportData[0:20])
+   - Extended registration data for the application to use (keccak of the extended data must match reportData[20:52])
+   - Full parsed report body for cheap access to TD report data fields
+   - Raw quote for future invalidation
 
 1. **Verify Flashtestation Transaction**
 
@@ -171,10 +172,19 @@ ADDRESS_BLOCK_BUILDER_POLICY=0x0000000000000000000000000000000000000042
 # this is the workload ID computed from the TEE's measurement registers
 # You can compute this from a registered TEE's report body using BlockBuilderPolicy.workloadIdForTDRegistration
 WORKLOAD_ID=0xeee********************************************************9164e
+
+# this is the commit hash of the source code that was used to build the TEE image
+# identified by the WORKLOAD_ID above
+COMMIT_HASH=1234567890abcdef1234567890abcdef12345678
+
+# a comma-separated list of URLs that point to the source code that was used to build the TEE image identified by the WORKLOAD_ID above
+RECORD_LOCATORS=https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c, https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly
 ```
 
 Then, to execute, run:
 
 ```
+
 forge script --chain 1301 script/Interactions.s.sol:AddWorkloadToPolicyScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv
+
 ```

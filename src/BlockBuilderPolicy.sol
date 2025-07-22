@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -18,6 +17,16 @@ import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 type WorkloadId is bytes32;
 
 /**
+ * @dev Metadata associated with a workload
+ */
+struct WorkloadMetadata {
+    // The Git commit hash of the source code.
+    string commitHash;
+    // An array of URLs pointing to the source code.
+    string[] sourceLocators;
+}
+
+/**
  * @title BlockBuilderPolicy
  * @notice A reference implementation of a policy contract for the FlashtestationRegistry
  * @notice A Policy is a collection of related WorkloadIds. A Policy exists to specify which
@@ -29,7 +38,6 @@ type WorkloadId is bytes32;
  * is allowed under any workload in a Policy, and the FlashtestationRegistry will handle the rest
  */
 contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradeable {
-    using EnumerableSet for EnumerableSet.Bytes32Set;
     using ECDSA for bytes32;
 
     // EIP-712 Constants
@@ -46,16 +54,12 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000; // Enabled Supervisor Protection Keys (PKS)
     bytes8 constant TD_TDATTRS_KL = 0x0000000080000000; // Enabled Key Locker (KL)
 
-    // The set of workloadIds that are allowed under this policy
+    // Mapping from workloadId to its metadata (commit hash and source locators)
     // This is only updateable by governance (i.e. the owner) of the Policy contract.
     // Adding, and removing a workload is O(1).
-    // NOTE: The critical `isAllowedPolicy` function is O(n) where n is the number of workloadIds in the policy
-    // This is because it needs to iterate over all workloadIds in the policy to check if the TEE is allowed
-    // This is not a problem for small policies, but it is a problem for large policies.
-    // The governance of this Policy must ensure that the number of workloadIds in the policy is small
-    // to ensure that calling `isAllowedPolicy` is not so expensive that it becomes uncallable due to
-    // block gas limits
-    EnumerableSet.Bytes32Set internal workloadIds;
+    // The critical `isAllowedPolicy` function is now O(1) since we can directly check if a workloadId exists
+    // in the mapping
+    mapping(bytes32 => WorkloadMetadata) public approvedWorkloads;
 
     address public registry;
 
@@ -78,6 +82,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     error UnauthorizedBlockBuilder(address caller); // the teeAddress is not associated with a valid TEE workload
     error UnsupportedVersion(uint8 version); // see SUPPORTED_VERSIONS for supported versions
     error InvalidNonce(uint256 expected, uint256 provided);
+    error CommitHashLengthError(uint256 length);
 
     // Events
 
@@ -85,7 +90,12 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     event WorkloadRemovedFromPolicy(WorkloadId workloadId);
     event RegistrySet(address registry);
     event BlockBuilderProofVerified(
-        address caller, WorkloadId workloadId, uint256 blockNumber, uint8 version, bytes32 blockContentHash
+        address caller,
+        WorkloadId workloadId,
+        uint256 blockNumber,
+        uint8 version,
+        bytes32 blockContentHash,
+        string commit_hash
     );
 
     /**
@@ -107,7 +117,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @param version The version of the flashtestation's protocol used to generate the block builder proof
     /// @param blockContentHash The hash of the block content
     /// @notice This function will only succeed if the caller is a registered TEE-controlled address from an attested TEE
-    /// and the TEE is running an approved block builder workload (see BlockBuilderPolicy.addWorkloadToPolicy)
+    /// and the TEE is running an approved block builder workload (see `addWorkloadToPolicy`)
     /// @notice The blockContentHash is a keccak256 hash of a subset of the block header, as specified by the version.
     /// See the [flashtestations spec](https://github.com/flashbots/rollup-boost/blob/77fc19f785eeeb9b4eb5fb08463bc556dec2c837/specs/flashtestations.md) for more details
     /// @dev If you do not want to deal with the operational difficulties of keeping your TEE-controlled
@@ -170,7 +180,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         // onchain. We rely on the TEE workload to correctly compute this hash according to the
         // specified version of the calculation method.
 
-        emit BlockBuilderProofVerified(teeAddress, workloadId, block.number, version, blockContentHash);
+        string memory commitHash = approvedWorkloads[WorkloadId.unwrap(workloadId)].commitHash;
+        emit BlockBuilderProofVerified(teeAddress, workloadId, block.number, version, blockContentHash, commitHash);
     }
 
     /// @notice Helper function to check if a given version is supported by this Policy
@@ -197,10 +208,11 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         }
 
         WorkloadId workloadId = workloadIdForTDRegistration(registration);
-        for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            if (WorkloadId.unwrap(workloadId) == workloadIds.at(i)) {
-                return (true, workloadId);
-            }
+        bytes32 workloadKey = WorkloadId.unwrap(workloadId);
+
+        // Check if the workload exists in our approved workloads mapping
+        if (bytes(approvedWorkloads[workloadKey].commitHash).length > 0) {
+            return (true, workloadId);
         }
 
         return (false, WorkloadId.wrap(0));
@@ -239,39 +251,59 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
     /// @notice Add a workload to a policy (governance only)
     /// @param workloadId The workload identifier
+    /// @param commitHash The 40-character hexadecimal commit hash of the git repository
+    /// whose source code is used to build the TEE image identified by the workloadId
+    /// @param sourceLocators An array of URIs pointing to the source code
     /// @notice Only the owner of this contract can add workloads to the policy
     /// and it is the responsibility of the owner to ensure that the workload is valid
     /// otherwise the address associated with this workload has full power to do anything
     /// who's authorization is based on this policy
-    function addWorkloadToPolicy(WorkloadId workloadId) external onlyOwner {
-        bool added = workloadIds.add(WorkloadId.unwrap(workloadId));
-        require(added, WorkloadAlreadyInPolicy());
+    /// @dev The commitHash solves the following problem; The only way for a smart contract like BlockBuilderPolicy
+    /// to verify that a TEE (identified by its workloadId) is running a specific piece of code (for instance,
+    /// op-rbuilder) is to reproducibly build that workload onchain. This is prohibitively expensive, so instead
+    /// we rely on a permissioned multisig (the owner of this contract) to add a commit hash to the policy whenever
+    /// it adds a new workloadId. We're already relying on the owner to verify that the workloadId is valid, so
+    /// we can also assume the owner will not add a commit hash that is not associated with the workloadId. If
+    /// the owner did act maliciously, this can easily be determined offchain by an honest actor building the
+    /// TEE image from the given commit hash, deriving the image's workloadId, and then comparing it to the
+    /// workloadId stored on the policy that is associated with the commit hash. If the workloadId is different,
+    /// this can be used to prove that the owner acted maliciously. In the honest case, this Policy serves as a
+    /// source of truth for which source code of build software (i.e. the commit hash) is used to build the TEE image
+    /// identified by the workloadId.
+    function addWorkloadToPolicy(WorkloadId workloadId, string calldata commitHash, string[] calldata sourceLocators)
+        external
+        onlyOwner
+    {
+        require(bytes(commitHash).length > 0, CommitHashLengthError(bytes(commitHash).length));
+
+        bytes32 workloadKey = WorkloadId.unwrap(workloadId);
+
+        // Check if workload already exists
+        require(bytes(approvedWorkloads[workloadKey].commitHash).length == 0, WorkloadAlreadyInPolicy());
+
+        // Store the workload metadata
+        approvedWorkloads[workloadKey] = WorkloadMetadata({commitHash: commitHash, sourceLocators: sourceLocators});
+
         emit WorkloadAddedToPolicy(workloadId);
     }
 
     /// @notice Remove a workload from a policy (governance only)
     /// @param workloadId The workload identifier
     function removeWorkloadFromPolicy(WorkloadId workloadId) external onlyOwner {
-        bool removed = workloadIds.remove(WorkloadId.unwrap(workloadId));
-        require(removed, WorkloadNotInPolicy());
+        bytes32 workloadKey = WorkloadId.unwrap(workloadId);
+
+        // Check if workload exists
+        require(bytes(approvedWorkloads[workloadKey].commitHash).length > 0, WorkloadNotInPolicy());
+
+        // Remove the workload metadata
+        delete approvedWorkloads[workloadKey];
+
         emit WorkloadRemovedFromPolicy(workloadId);
     }
 
-    /// @notice Get all workloads in the policy
-    /// @return workloads The workloadIds in the policy
-    /// @dev this exists because we need to make workloadIds internal due to a solc
-    /// constraint, and so we need to make our own public getter
-    function getWorkloads() external view returns (bytes32[] memory) {
-        return workloadIds.values();
-    }
-
-    /// @notice Get a workload from the policy
-    /// @param index The index of the workload
-    /// @return workload The workloadId at the given index
-    /// @dev this exists because we need to make workloadIds internal due to a solc
-    /// constraint, and so we need to make our own public getter
-    function getWorkload(uint256 index) external view returns (bytes32) {
-        return workloadIds.at(index);
+    /// @notice Get the metadata for a workload
+    function getWorkloadMetadata(WorkloadId workloadId) external view returns (WorkloadMetadata memory) {
+        return approvedWorkloads[WorkloadId.unwrap(workloadId)];
     }
 
     /// @notice Computes the digest for the EIP-712 signature

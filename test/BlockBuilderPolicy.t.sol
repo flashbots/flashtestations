@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {BlockBuilderPolicy, WorkloadId} from "../src/BlockBuilderPolicy.sol";
+import {BlockBuilderPolicy, WorkloadId, WorkloadMetadata} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
 import {MockQuote} from "../test/FlashtestationRegistry.t.sol";
@@ -16,6 +16,14 @@ import {Helper} from "./helpers/Helper.sol";
 import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
 contract BlockBuilderPolicyTest is Test {
+    // Helper function to create dynamic string arrays
+    function createStringArray(string memory a, string memory b) internal pure returns (string[] memory) {
+        string[] memory arr = new string[](2);
+        arr[0] = a;
+        arr[1] = b;
+        return arr;
+    }
+
     FlashtestationRegistry public registry;
     MockAutomataDcapAttestationFee public attestationContract;
     BlockBuilderPolicy public policy;
@@ -31,6 +39,8 @@ contract BlockBuilderPolicyTest is Test {
         address teeAddress;
         WorkloadId workloadId;
         uint256 privateKey;
+        string commitHash;
+        string[] sourceLocators;
     }
 
     PolicyMockQuote mockf200 = PolicyMockQuote({
@@ -38,28 +48,48 @@ contract BlockBuilderPolicyTest is Test {
         quote: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/quote.bin"),
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
-        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000, // unused for this mock
+        commitHash: "1234567890abcdef1234567890abcdef12345678",
+        sourceLocators: createStringArray(
+            "https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c",
+            "https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly"
+        )
     });
     PolicyMockQuote mockf200WithDifferentWorkloadId = PolicyMockQuote({ // TODO!
         output: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/output2.bin"),
         quote: vm.readFileBinary("test/raw_tdx_quotes/0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03/quote2.bin"),
         teeAddress: 0xf200f222043C5bC6c70AA6e35f5C5FDe079F3a03,
         workloadId: WorkloadId.wrap(0x5e6be81f9e5b10d15a6fa69b19ab0269cd943db39fa1f0d38a76eb76146948cb),
-        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000, // unused for this mock
+        commitHash: "1234567890abcdef1234567890abcdef12345678",
+        sourceLocators: createStringArray(
+            "https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c",
+            "https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly"
+        )
     });
     PolicyMockQuote mock12c1 = PolicyMockQuote({
         output: vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/output.bin"),
         quote: vm.readFileBinary("test/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/quote.bin"),
         teeAddress: 0x12c14e56d585Dcf3B36f37476c00E78bA9363742,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
-        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000 // unused for this mock
+        privateKey: 0x0000000000000000000000000000000000000000000000000000000000000000, // unused for this mock
+        commitHash: "1234567890abcdef1234567890abcdef12345678",
+        sourceLocators: createStringArray(
+            "https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c",
+            "https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly"
+        )
     });
     PolicyMockQuote mock46f6 = PolicyMockQuote({
         output: vm.readFileBinary("test/raw_tdx_quotes/0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF/output.bin"),
         quote: vm.readFileBinary("test/raw_tdx_quotes/0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF/quote.bin"),
         teeAddress: 0x46f6b3ACF1dD8Ac0085e30192741336c4aF6EdAF,
         workloadId: WorkloadId.wrap(0xeee0d5f864e6d46d6da790c7d60baac5c8478eb89e86667336d3f17655e9164e),
-        privateKey: 0x92e4b5ed61db615b26da2271da5b47c42d691b3164561cfb4edbc85ca6ca61a8
+        privateKey: 0x92e4b5ed61db615b26da2271da5b47c42d691b3164561cfb4edbc85ca6ca61a8,
+        commitHash: "1234567890abcdef1234567890abcdef12345678",
+        sourceLocators: createStringArray(
+            "https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c",
+            "https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly"
+        )
     });
 
     WorkloadId arbitraryWorkloadId = WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
@@ -88,81 +118,99 @@ contract BlockBuilderPolicyTest is Test {
         registry.registerTEEService(mock.quote, bytes("")); // Add empty extended data
     }
 
-    function test_addWorkloadToPolicy_and_getters() public {
+    function test_addWorkloadToPolicy_and_getter_for_workload_metadata() public {
         // Add a workload
-        policy.addWorkloadToPolicy(mockf200.workloadId);
-        // getWorkloads should return the workload
-        bytes32[] memory workloads = policy.getWorkloads();
-        assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
-        // getWorkload(0) should return the same
-        bytes32 workload = policy.getWorkload(0);
-        assertEq(workload, WorkloadId.unwrap(mockf200.workloadId));
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
+
+        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        assertEq(workload.commitHash, mockf200.commitHash);
+        assertEq(workload.sourceLocators.length, 2);
+        assertEq(workload.sourceLocators[0], mockf200.sourceLocators[0]);
+        assertEq(workload.sourceLocators[1], mockf200.sourceLocators[1]);
     }
 
     function test_addWorkloadToPolicy_with_multiple_workloads() public {
-        policy.addWorkloadToPolicy(mockf200.workloadId);
-        policy.addWorkloadToPolicy(mockf200WithDifferentWorkloadId.workloadId);
-        bytes32[] memory workloads = policy.getWorkloads();
-        assertEq(workloads.length, 2);
-        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
-        assertEq(workloads[1], WorkloadId.unwrap(mockf200WithDifferentWorkloadId.workloadId));
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
+        policy.addWorkloadToPolicy(
+            mockf200WithDifferentWorkloadId.workloadId,
+            mockf200WithDifferentWorkloadId.commitHash,
+            mockf200WithDifferentWorkloadId.sourceLocators
+        );
+
+        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        assertEq(workload.commitHash, mockf200.commitHash);
+        assertEq(workload.sourceLocators.length, 2);
+        assertEq(workload.sourceLocators[0], mockf200.sourceLocators[0]);
+        assertEq(workload.sourceLocators[1], mockf200.sourceLocators[1]);
+
+        workload = policy.getWorkloadMetadata(mockf200WithDifferentWorkloadId.workloadId);
+        assertEq(workload.commitHash, mockf200WithDifferentWorkloadId.commitHash);
+        assertEq(workload.sourceLocators.length, 2);
+        assertEq(workload.sourceLocators[0], mockf200WithDifferentWorkloadId.sourceLocators[0]);
+        assertEq(workload.sourceLocators[1], mockf200WithDifferentWorkloadId.sourceLocators[1]);
     }
 
     function test_addWorkloadToPolicy_reverts_if_duplicate() public {
-        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
         vm.expectRevert(BlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
-        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_not_owner() public {
         vm.prank(address(0x123));
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
-        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
     }
 
     function test_removeWorkloadFromPolicy() public {
-        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
-        bytes32[] memory workloads = policy.getWorkloads();
-        assertEq(workloads.length, 0);
+        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        assertEq(workload.commitHash, "");
+        assertEq(workload.sourceLocators.length, 0);
     }
 
     function test_removeWorkloadFromPolicy_with_multiple_workloads() public {
-        policy.addWorkloadToPolicy(mockf200.workloadId);
-        policy.addWorkloadToPolicy(mockf200WithDifferentWorkloadId.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
+        policy.addWorkloadToPolicy(
+            mockf200WithDifferentWorkloadId.workloadId,
+            mockf200WithDifferentWorkloadId.commitHash,
+            mockf200WithDifferentWorkloadId.sourceLocators
+        );
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
-        bytes32[] memory workloads = policy.getWorkloads();
-        assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(mockf200WithDifferentWorkloadId.workloadId));
+        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200WithDifferentWorkloadId.workloadId);
+        assertEq(workload.commitHash, mockf200WithDifferentWorkloadId.commitHash);
+        assertEq(workload.sourceLocators.length, 2);
+        assertEq(workload.sourceLocators[0], mockf200WithDifferentWorkloadId.sourceLocators[0]);
+        assertEq(workload.sourceLocators[1], mockf200WithDifferentWorkloadId.sourceLocators[1]);
+
+        workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        assertEq(workload.commitHash, "");
+        assertEq(workload.sourceLocators.length, 0);
 
         // now remove the other workload
         policy.removeWorkloadFromPolicy(mockf200WithDifferentWorkloadId.workloadId);
-        workloads = policy.getWorkloads();
-        assertEq(workloads.length, 0);
+        workload = policy.getWorkloadMetadata(mockf200WithDifferentWorkloadId.workloadId);
+        assertEq(workload.commitHash, "");
+        assertEq(workload.sourceLocators.length, 0);
 
         // now add the workloads back
-        policy.addWorkloadToPolicy(mockf200.workloadId);
-        workloads = policy.getWorkloads();
-        assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
-        policy.addWorkloadToPolicy(mockf200WithDifferentWorkloadId.workloadId);
-        workloads = policy.getWorkloads();
-        assertEq(workloads.length, 2);
-        assertEq(workloads[0], WorkloadId.unwrap(mockf200.workloadId));
-        assertEq(workloads[1], WorkloadId.unwrap(mockf200WithDifferentWorkloadId.workloadId));
-    }
-
-    function test_removeWorkloadFromPolicy_with_multiple_workloads_present() public {
-        policy.addWorkloadToPolicy(mockf200.workloadId);
-        policy.addWorkloadToPolicy(arbitraryWorkloadId);
-        policy.removeWorkloadFromPolicy(mockf200.workloadId);
-        bytes32[] memory workloads = policy.getWorkloads();
-        assertEq(workloads.length, 1);
-        assertEq(workloads[0], WorkloadId.unwrap(arbitraryWorkloadId));
-        policy.removeWorkloadFromPolicy(arbitraryWorkloadId);
-        workloads = policy.getWorkloads();
-        assertEq(workloads.length, 0);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
+        workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        assertEq(workload.commitHash, mockf200.commitHash);
+        assertEq(workload.sourceLocators.length, 2);
+        assertEq(workload.sourceLocators[0], mockf200.sourceLocators[0]);
+        assertEq(workload.sourceLocators[1], mockf200.sourceLocators[1]);
+        policy.addWorkloadToPolicy(
+            mockf200WithDifferentWorkloadId.workloadId,
+            mockf200WithDifferentWorkloadId.commitHash,
+            mockf200WithDifferentWorkloadId.sourceLocators
+        );
+        workload = policy.getWorkloadMetadata(mockf200WithDifferentWorkloadId.workloadId);
+        assertEq(workload.commitHash, mockf200WithDifferentWorkloadId.commitHash);
+        assertEq(workload.sourceLocators.length, 2);
+        assertEq(workload.sourceLocators[0], mockf200WithDifferentWorkloadId.sourceLocators[0]);
+        assertEq(workload.sourceLocators[1], mockf200WithDifferentWorkloadId.sourceLocators[1]);
     }
 
     function test_removeWorkloadFromPolicy_reverts_if_not_present() public {
@@ -185,7 +233,7 @@ contract BlockBuilderPolicyTest is Test {
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
 
         // Add the actual workloadId to the policy
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
 
         // Should return true
         (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
@@ -195,7 +243,7 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_isAllowedPolicy_returns_false_for_unregistered_tee() public {
         // Add workload but do not register TEE
-        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
         (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
@@ -208,7 +256,7 @@ contract BlockBuilderPolicyTest is Test {
         // Get the actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
 
         // Now invalidate the TEE
         attestationContract.setQuoteResult(mockf200.quote, false, new bytes(0));
@@ -222,15 +270,15 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_isAllowedPolicy_returns_false_for_wrong_workload() public {
         _registerTEE(mockf200);
-        policy.addWorkloadToPolicy(wrongWorkloadId);
+        policy.addWorkloadToPolicy(wrongWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
         (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
     }
 
     function test_isAllowedPolicy_returns_false_for_invalid_tee_when_multiple_workloads_present() public {
-        policy.addWorkloadToPolicy(mockf200.workloadId);
-        policy.addWorkloadToPolicy(wrongWorkloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
+        policy.addWorkloadToPolicy(wrongWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
         (bool allowed, WorkloadId workloadId) = policy.isAllowedPolicy(mockf200.teeAddress);
         assertFalse(allowed);
         assertEq(WorkloadId.unwrap(workloadId), 0);
@@ -350,19 +398,13 @@ contract BlockBuilderPolicyTest is Test {
         );
     }
 
-    function test_getWorkload_reverts_on_out_of_bounds() public {
-        // Should revert if index is out of bounds
-        vm.expectRevert();
-        policy.getWorkload(0);
-    }
-
     function test_verifyBlockBuilderProof_fails_with_incorrect_version() public {
         _registerTEE(mockf200);
 
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
 
         // Try with unsupported version 2
         vm.prank(mockf200.teeAddress);
@@ -372,7 +414,7 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_verifyBlockBuilderProof_fails_with_unregistered_tee() public {
         // Add workload to policy but don't register TEE
-        policy.addWorkloadToPolicy(mockf200.workloadId);
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
 
         vm.prank(mockf200.teeAddress);
         vm.expectRevert(
@@ -387,12 +429,12 @@ contract BlockBuilderPolicyTest is Test {
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
 
         bytes32 blockContentHash = bytes32(hex"1234");
         vm.expectEmit(address(policy));
         emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            mockf200.teeAddress, actualWorkloadId, block.number, 1, blockContentHash
+            mockf200.teeAddress, actualWorkloadId, block.number, 1, blockContentHash, mockf200.commitHash
         );
 
         vm.prank(mockf200.teeAddress);
@@ -429,7 +471,7 @@ contract BlockBuilderPolicyTest is Test {
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mock46f6.commitHash, mock46f6.sourceLocators);
 
         // Create the EIP-712 signature
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
@@ -440,7 +482,7 @@ contract BlockBuilderPolicyTest is Test {
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
         emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress, actualWorkloadId, block.number, version, blockContentHash
+            teeAddress, actualWorkloadId, block.number, version, blockContentHash, mock46f6.commitHash
         );
 
         // Call the function
@@ -460,7 +502,7 @@ contract BlockBuilderPolicyTest is Test {
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mock46f6.commitHash, mock46f6.sourceLocators);
 
         // Create the EIP-712 signature
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
@@ -471,7 +513,7 @@ contract BlockBuilderPolicyTest is Test {
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
         emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress, actualWorkloadId, block.number, version, blockContentHash
+            teeAddress, actualWorkloadId, block.number, version, blockContentHash, mock46f6.commitHash
         );
 
         // Call the function
@@ -490,7 +532,7 @@ contract BlockBuilderPolicyTest is Test {
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
         emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress, actualWorkloadId, block.number, version, blockContentHash
+            teeAddress, actualWorkloadId, block.number, version, blockContentHash, mock46f6.commitHash
         );
 
         // Call the function
@@ -537,7 +579,7 @@ contract BlockBuilderPolicyTest is Test {
         // Get actual workloadId and add to policy
         (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mock46f6.teeAddress);
         WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId);
+        policy.addWorkloadToPolicy(actualWorkloadId, mock46f6.commitHash, mock46f6.sourceLocators);
 
         // Create the EIP-712 signature
         bytes32 structHash = policy.computeStructHash(version, blockContentHash, 0);
