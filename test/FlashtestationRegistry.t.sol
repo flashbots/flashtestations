@@ -401,7 +401,7 @@ contract FlashtestationRegistryTest is Test {
     }
 
     function test_extDataMismatch() public {
-        // This test verifies that the TEE address is properly extracted from reportData[0:20]
+        // This test verifies that using a mismatched extendedRegistrationData will result in an error
         bytes memory mockOutput = mockc200.output;
         bytes memory mockQuote = mockc200.quote;
 
@@ -415,7 +415,7 @@ contract FlashtestationRegistryTest is Test {
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
-        // Can only register from the address in the quote
+        // keccak hash of extendedRegistrationData must match the 32 byte hash in the reportData
         vm.prank(expectedAddress);
         vm.expectRevert(
             abi.encodeWithSelector(

@@ -250,6 +250,106 @@ contract BlockBuilderPolicyTest is Test {
         assertTrue(WorkloadId.unwrap(computedWorkloadId) != 0, "WorkloadId should not be zero");
     }
 
+    function test_workloadIdForTDRegistration_is_deterministic() public {
+        // Register a TEE
+        _registerTEE(mockf200);
+        _registerTEE(mock12c1);
+
+        // Get the registration
+        (, IFlashtestationRegistry.RegisteredTEE memory registrationF200) =
+            registry.getRegistration(mockf200.teeAddress);
+        (, IFlashtestationRegistry.RegisteredTEE memory registration12c1) =
+            registry.getRegistration(mock12c1.teeAddress);
+
+        // Compute the workloadId
+        WorkloadId computedWorkloadIdF200 = policy.workloadIdForTDRegistration(registrationF200);
+        WorkloadId computedWorkloadId12c1 = policy.workloadIdForTDRegistration(registration12c1);
+
+        // Same measurements, different addresses and ext data. workloadId should match.
+        assertEq(WorkloadId.unwrap(computedWorkloadIdF200), WorkloadId.unwrap(computedWorkloadId12c1));
+    }
+
+    // Add these test functions to BlockBuilderPolicyTest contract
+
+    function test_workloadId_tdAttributes_allowed_bits_ignored() public {
+        // Register a TEE to get a baseline
+        _registerTEE(mockf200);
+        (, IFlashtestationRegistry.RegisteredTEE memory baseRegistration) =
+            registry.getRegistration(mockf200.teeAddress);
+        WorkloadId baseWorkloadId = policy.workloadIdForTDRegistration(baseRegistration);
+
+        // Test that all combinations of allowed bits don't affect workloadId
+        // We test: none set, all set, and one intermediate case
+        bytes8[3] memory allowedBitCombos = [
+            bytes8(0x00000000D0000000), // All three allowed bits set (VE_DISABLED | PKS | KL)
+            bytes8(0x0000000050000000), // VE_DISABLED | PKS
+            bytes8(0x0000000000000000) // None set
+        ];
+
+        for (uint256 i = 0; i < allowedBitCombos.length; i++) {
+            IFlashtestationRegistry.RegisteredTEE memory modifiedRegAllowed = baseRegistration;
+            // Clear the allowed bits first, then set the specific combination
+            modifiedRegAllowed.parsedReportBody.tdAttributes =
+                (baseRegistration.parsedReportBody.tdAttributes & ~bytes8(0x00000000D0000000)) | allowedBitCombos[i];
+
+            WorkloadId workloadId = policy.workloadIdForTDRegistration(modifiedRegAllowed);
+            assertEq(
+                WorkloadId.unwrap(baseWorkloadId),
+                WorkloadId.unwrap(workloadId),
+                "Allowed tdAttributes bits should not affect workloadId"
+            );
+        }
+
+        // Test that a non-allowed bit DOES change workloadId
+        IFlashtestationRegistry.RegisteredTEE memory modifiedReg = baseRegistration;
+        modifiedReg.parsedReportBody.tdAttributes =
+            baseRegistration.parsedReportBody.tdAttributes | bytes8(0x0000000000000001);
+        WorkloadId differentWorkloadId = policy.workloadIdForTDRegistration(modifiedReg);
+        assertNotEq(
+            WorkloadId.unwrap(baseWorkloadId),
+            WorkloadId.unwrap(differentWorkloadId),
+            "Non-allowed tdAttributes bits should affect workloadId"
+        );
+    }
+
+    function test_workloadId_xfam_expected_bits_required() public {
+        // Register a TEE to get a baseline
+        _registerTEE(mockf200);
+        (, IFlashtestationRegistry.RegisteredTEE memory baseRegistration) =
+            registry.getRegistration(mockf200.teeAddress);
+        WorkloadId baseWorkloadId = policy.workloadIdForTDRegistration(baseRegistration);
+
+        // Test removing FPU bit changes workloadId
+        IFlashtestationRegistry.RegisteredTEE memory modifiedReg1 = baseRegistration;
+        modifiedReg1.parsedReportBody.xFAM = baseRegistration.parsedReportBody.xFAM ^ bytes8(0x0000000000000001);
+        WorkloadId workloadIdNoFPU = policy.workloadIdForTDRegistration(modifiedReg1);
+        assertNotEq(
+            WorkloadId.unwrap(baseWorkloadId),
+            WorkloadId.unwrap(workloadIdNoFPU),
+            "Missing FPU bit should change workloadId"
+        );
+
+        // Test removing SSE bit changes workloadId
+        IFlashtestationRegistry.RegisteredTEE memory modifiedReg2 = baseRegistration;
+        modifiedReg2.parsedReportBody.xFAM = baseRegistration.parsedReportBody.xFAM ^ bytes8(0x0000000000000002);
+        WorkloadId workloadIdNoSSE = policy.workloadIdForTDRegistration(modifiedReg2);
+        assertNotEq(
+            WorkloadId.unwrap(baseWorkloadId),
+            WorkloadId.unwrap(workloadIdNoSSE),
+            "Missing SSE bit should change workloadId"
+        );
+
+        // Test adding an extra bit changes workloadId
+        IFlashtestationRegistry.RegisteredTEE memory modifiedReg3 = baseRegistration;
+        modifiedReg3.parsedReportBody.xFAM = baseRegistration.parsedReportBody.xFAM | bytes8(0x0000000000000008);
+        WorkloadId workloadIdExtraBit = policy.workloadIdForTDRegistration(modifiedReg3);
+        assertNotEq(
+            WorkloadId.unwrap(baseWorkloadId),
+            WorkloadId.unwrap(workloadIdExtraBit),
+            "Additional xFAM bits should change workloadId"
+        );
+    }
+
     function test_getWorkload_reverts_on_out_of_bounds() public {
         // Should revert if index is out of bounds
         vm.expectRevert();
