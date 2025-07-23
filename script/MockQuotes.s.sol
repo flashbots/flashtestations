@@ -13,7 +13,7 @@ import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
 contract MakeReportData is Script, DeploymentUtils {
     function setUp() public {}
 
-    function run() public {
+    function run() public view {
         address teeAddress = vm.envAddress("TEE_ADDRESS");
         console.logBytes(abi.encodePacked(teeAddress, keccak256("")));
     }
@@ -39,7 +39,7 @@ contract FetchRemoteQuote is Script, DeploymentUtils {
         inputs[3] = pathToQuote;
         inputs[4] = string.concat("http://ns31695324.ip-141-94-163.eu:10080/attest/", reportData);
 
-        bytes memory res = vm.ffi(inputs);
+        vm.ffi(inputs);
         console.log("saved response to ", pathToQuote);
     }
 }
@@ -67,7 +67,7 @@ contract VerifyQuoteOnchain is Script, DeploymentUtils {
     }
 }
 
-function substring(string memory str, uint256 startIndex, uint256 len) returns (string memory) {
+function substring(string memory str, uint256 startIndex, uint256 len) pure returns (string memory) {
     bytes memory strBytes = bytes(str);
     bytes memory result = new bytes(len);
     for (uint256 i = startIndex; i < startIndex + len; i++) {

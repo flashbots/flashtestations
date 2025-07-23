@@ -8,7 +8,6 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
-import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
 // WorkloadID uniquely identifies a TEE workload. A workload is roughly equivalent to a version of an application's
 // code, can be reproduced from source code, and is derived from a combination of the TEE's measurement registers.
@@ -156,7 +155,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @param blockContentHash The hash of the block content
     /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
     /// and it is not needed to be called by other contracts
-    /// @dev We can't check the whole block content hash, but we could check the block number and parent hash
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         require(isSupportedVersion(version), UnsupportedVersion(version));
 

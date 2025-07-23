@@ -33,7 +33,6 @@ You can find a [specification for the protocol here](https://github.com/flashbot
       - Extended registration data for the application to use (keccak of the extended data must match reportData[20:52])
       - Full parsed report body for cheap access to TD report data fields
       - Raw quote for future invalidation
-      - Quote hash for indexing
 
 1. **Verify Flashtestation Transaction**
 

@@ -83,11 +83,10 @@ contract FlashtestationRegistry is
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistrationData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded application specific attested data, reserved for future upgrades
      */
     function registerTEEService(bytes calldata rawQuote, bytes calldata extendedRegistrationData)
         external
-        limitBytesSize(rawQuote)
         nonReentrant
     {
         doRegister(msg.sender, rawQuote, extendedRegistrationData);
@@ -101,7 +100,7 @@ contract FlashtestationRegistry is
      * instead can rely on any EOA to execute the transaction, but still only allow quotes from attested TEEs
      * @dev Replay is implicitly shielded against through the transaction's nonce (TEE must sign the new nonce)
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistrationData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded application specific attested data, reserved for future upgrades
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
      * @param signature The EIP-712 signature of the registration message
      */
@@ -110,7 +109,7 @@ contract FlashtestationRegistry is
         bytes calldata extendedRegistrationData,
         uint256 nonce,
         bytes calldata signature
-    ) external limitBytesSize(rawQuote) limitBytesSize(extendedRegistrationData) nonReentrant {
+    ) external nonReentrant {
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
         bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistrationData, nonce));
 
@@ -135,9 +134,13 @@ contract FlashtestationRegistry is
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @param caller The address from which registration request originates, must match the one in the quote
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistrationData Abi-encoded attested data, application specific
+     * @param extendedRegistrationData Abi-encoded application specific attested data, reserved for future upgrades
      */
-    function doRegister(address caller, bytes calldata rawQuote, bytes calldata extendedRegistrationData) internal {
+    function doRegister(address caller, bytes calldata rawQuote, bytes calldata extendedRegistrationData)
+        internal
+        limitBytesSize(rawQuote)
+        limitBytesSize(extendedRegistrationData)
+    {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
         if (!success) {
             revert InvalidQuote(output);

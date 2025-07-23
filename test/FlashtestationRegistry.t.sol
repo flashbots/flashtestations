@@ -313,7 +313,6 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = mockf200.output;
         bytes memory mockQuote = mockf200.quote;
         address teeAddress = mockf200.teeAddress;
-        bytes32 quoteHash = keccak256(mockQuote);
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote, mockf200.extData);
@@ -332,9 +331,6 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = mockc200.output;
         bytes memory mockQuote = mockc200.quote;
         address teeAddress = mockc200.teeAddress;
-
-        // Parse the output to get the report body
-        TD10ReportBody memory reportBody = QuoteParser.parseV4VerifierOutput(mockOutput);
 
         // Create extended data that doesn't match the hash in reportData[20:52]
         bytes memory invalidExtendedData = abi.encode("wrong data");
@@ -406,14 +402,13 @@ contract FlashtestationRegistryTest is Test {
 
     function test_extDataMismatch() public {
         // This test verifies that the TEE address is properly extracted from reportData[0:20]
-        bytes memory mockOutput =
-            vm.readFileBinary("test/raw_tdx_quotes/0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04/output.bin");
-        bytes memory mockQuote =
-            vm.readFileBinary("test/raw_tdx_quotes/0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04/quote.bin");
+        bytes memory mockOutput = mockc200.output;
+        bytes memory mockQuote = mockc200.quote;
 
         // Parse the output to verify the expected address
         TD10ReportBody memory reportBody = QuoteParser.parseV4VerifierOutput(mockOutput);
         (address extractedAddress, bytes32 extractedExtDataHash) = QuoteParser.parseReportData(reportBody.reportData);
+        assertEq(extractedExtDataHash, keccak256(mockc200.extData));
 
         address expectedAddress = 0xc200F222043C5BC6c70aA6e35f5c5fDE079f3A04;
         assertEq(extractedAddress, expectedAddress, "Address should be extracted from reportData[0:20]");
@@ -430,40 +425,6 @@ contract FlashtestationRegistryTest is Test {
             )
         );
         registry.registerTEEService(mockQuote, bytes("xxxx"));
-    }
-
-    function test_reportdata_length_validation() public {
-        // Create a mock quote with reportData shorter than 52 bytes
-        bytes memory mockQuote = mockf200.quote;
-
-        // Create a mock output with short reportData
-        bytes memory shortReportData = new bytes(30); // Less than TD_REPORTDATA_LENGTH (52)
-
-        // Create a valid TD10ReportBody but with short reportData
-        TD10ReportBody memory shortReport;
-        shortReport.teeTcbSvn = bytes16(0);
-        shortReport.mrSeam = new bytes(48);
-        shortReport.mrsignerSeam = new bytes(48);
-        shortReport.seamAttributes = bytes8(0);
-        shortReport.tdAttributes = bytes8(0);
-        shortReport.xFAM = bytes8(0);
-        shortReport.mrTd = new bytes(48);
-        shortReport.mrConfigId = new bytes(48);
-        shortReport.mrOwner = new bytes(48);
-        shortReport.mrOwnerConfig = new bytes(48);
-        shortReport.rtMr0 = new bytes(48);
-        shortReport.rtMr1 = new bytes(48);
-        shortReport.rtMr2 = new bytes(48);
-        shortReport.rtMr3 = new bytes(48);
-        shortReport.reportData = shortReportData;
-
-        // We need to create a properly formatted output that will pass verification
-        // but has short reportData. This is tricky since we can't easily mock the internal
-        // parsing. Instead, let's test that registration fails when reportData is too short.
-
-        // For this test, we'll need to create a custom mock that returns short reportData
-        // This would require modifying the mock attestation contract or creating a new one
-        // For now, we'll skip this test as it requires deeper mocking
     }
 
     /// @dev we need the comment below because QuoteParser.parseV4Quote() is internal
