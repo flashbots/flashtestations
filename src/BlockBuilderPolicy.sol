@@ -7,9 +7,15 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {WorkloadId} from "./utils/QuoteParser.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
-import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+
+// WorkloadID uniquely identifies a TEE workload. A workload is roughly equivalent to a version of an application's
+// code, can be reproduced from source code, and is derived from a combination of the TEE's measurement registers.
+// The TDX platform provides several registers that capture cryptographic hashes of code, data, and configuration
+// loaded into the TEE's environment. This means that whenever a TEE device changes anything about its compute stack
+// (e.g. user code, firmware, OS, etc), the workloadID will change.
+// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
+type WorkloadId is bytes32;
 
 /**
  * @title BlockBuilderPolicy
@@ -29,6 +35,16 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     // EIP-712 Constants
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
+
+    // TDX workload constants
+    // See section 11.5.3 in TDX Module v1.5 Base Architecture Specification https://www.intel.com/content/www/us/en/content-details/733575/intel-tdx-module-v1-5-base-architecture-specification.html
+    bytes8 constant TD_XFAM_FPU = 0x0000000000000001; // Enabled FPU (always enabled)
+    bytes8 constant TD_XFAM_SSE = 0x0000000000000002; // Enabled SSE (always enabled)
+
+    // See section 3.4.1 in TDX Module ABI specification https://cdrdv2.intel.com/v1/dl/getContent/733579
+    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000; // Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux.
+    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000; // Enabled Supervisor Protection Keys (PKS)
+    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000; // Enabled Key Locker (KL)
 
     // The set of workloadIds that are allowed under this policy
     // This is only updateable by governance (i.e. the owner) of the Policy contract.
@@ -174,35 +190,51 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @return allowed True if the TEE is valid for any workload in the policy
     /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
     function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
+        (bool isValid, FlashtestationRegistry.RegisteredTEE memory registration) =
+            FlashtestationRegistry(registry).getRegistration(teeAddress);
+        if (!isValid) {
+            return (false, WorkloadId.wrap(0));
+        }
+
+        WorkloadId workloadId = workloadIdForTDRegistration(registration);
         for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
-            if (FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)) {
+            if (WorkloadId.unwrap(workloadId) == workloadIds.at(i)) {
                 return (true, workloadId);
             }
         }
+
         return (false, WorkloadId.wrap(0));
     }
 
-    /// @notice An alternative implementation of isAllowedPolicy that verifies more than just
-    /// the workloadId's matching and if the attestation is still valid
-    /// @param teeAddress The TEE-controlled address
-    /// @param expectedTeeTcbSvn The expected teeTcbSvn of the TEE's attestation
-    /// @return allowed True if the TEE's attestation is part of the policy, is still valid, and
-    /// the teeTcbSvn matches the expected value
-    /// @dev This exists to show how different Policies can be implemented, based on what
-    /// properties of the TEE's attestation are important to verify.
-    function isAllowedPolicy2(address teeAddress, bytes16 expectedTeeTcbSvn) external view returns (bool allowed) {
-        for (uint256 i = 0; i < workloadIds.length(); ++i) {
-            WorkloadId workloadId = WorkloadId.wrap(workloadIds.at(i));
-            TD10ReportBody memory reportBody = FlashtestationRegistry(registry).getReportBody(teeAddress);
-            if (
-                FlashtestationRegistry(registry).isValidWorkload(workloadId, teeAddress)
-                    && reportBody.teeTcbSvn == expectedTeeTcbSvn
-            ) {
-                return true;
-            }
-        }
-        return false;
+    // Application specific mapping of registration data to a workload identifier
+    // Think of the workload identifier as the version of the application for governance
+    // The workload id verifiably maps to a version of source code for the VM image
+    function workloadIdForTDRegistration(FlashtestationRegistry.RegisteredTEE memory registration)
+        public
+        pure
+        returns (WorkloadId)
+    {
+        // We expect FPU and SSE xfam bits to be set, and anything else should be handled by explicitly allowing the workloadid
+        bytes8 expectedXfamBits = TD_XFAM_FPU | TD_XFAM_SSE;
+
+        // We don't mind VE_DISABLED, PKS, and KL tdattributes bits being set either way, anything else requires explicitly allowing the workloadid
+        bytes8 ignoredTdAttributesBitmask = TD_TDATTRS_VE_DISABLED | TD_TDATTRS_PKS | TD_TDATTRS_KL;
+
+        return WorkloadId.wrap(
+            keccak256(
+                bytes.concat(
+                    registration.parsedReportBody.mrTd,
+                    registration.parsedReportBody.rtMr0,
+                    registration.parsedReportBody.rtMr1,
+                    registration.parsedReportBody.rtMr2,
+                    registration.parsedReportBody.rtMr3,
+                    // VMM configuration
+                    registration.parsedReportBody.mrConfigId,
+                    registration.parsedReportBody.xFAM ^ expectedXfamBits,
+                    registration.parsedReportBody.tdAttributes & ~ignoredTdAttributesBitmask
+                )
+            )
+        );
     }
 
     /// @notice Add a workload to a policy (governance only)
