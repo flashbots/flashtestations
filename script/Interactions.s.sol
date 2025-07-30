@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {BlockBuilderPolicy, WorkloadId} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
+import {StringUtils} from "../src/utils/StringUtils.sol";
 
 /// @title AddWorkloadToPolicyScript
 /// @notice A simple helper script to add a workload to the policy
@@ -19,9 +20,22 @@ contract AddWorkloadToPolicyScript is Script {
         console.log("ADDRESS_BLOCK_BUILDER_POLICY:");
         console.logAddress(address(policy));
         bytes32 workloadId = vm.envBytes32("WORKLOAD_ID");
+        string memory commitHash = vm.envString("COMMIT_HASH");
         console.log("WORKLOAD_ID:");
         console.logBytes32(workloadId);
-        policy.addWorkloadToPolicy(WorkloadId.wrap(vm.envBytes32("WORKLOAD_ID")));
+        console.log("COMMIT_HASH:");
+        console.log(commitHash);
+        string memory sourceLocatorsRaw = vm.envString("RECORD_LOCATORS");
+        string[] memory recordLocators = StringUtils.splitCommaSeparated(sourceLocatorsRaw);
+        console.log("RECORD_LOCATORS:");
+        for (uint256 i = 0; i < recordLocators.length; i++) {
+            console.log(recordLocators[i]);
+            if (StringUtils.isEmpty(recordLocators[i])) {
+                revert("one of the RECORD_LOCATORS is empty, make sure to use a comma-separated list of URLs");
+            }
+        }
+
+        policy.addWorkloadToPolicy(WorkloadId.wrap(workloadId), commitHash, recordLocators);
         console.log("WorkloadId added to policy");
         vm.stopBroadcast();
     }
