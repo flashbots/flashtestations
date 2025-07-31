@@ -17,12 +17,13 @@ import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 type WorkloadId is bytes32;
 
 /**
- * @dev Metadata associated with a workload
+ * @notice Metadata associated with a workload
+ * @dev Used to track the source code used to build the TEE image identified by the workloadId
  */
 struct WorkloadMetadata {
-    // The Git commit hash of the source code.
+    /// @notice The Git commit hash of the source code repository
     string commitHash;
-    // An array of URLs pointing to the source code.
+    /// @notice An array of URLs pointing to the source code repository
     string[] sourceLocators;
 }
 
@@ -44,38 +45,47 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
 
-    // TDX workload constants
-    // See section 11.5.3 in TDX Module v1.5 Base Architecture Specification https://www.intel.com/content/www/us/en/content-details/733575/intel-tdx-module-v1-5-base-architecture-specification.html
-    bytes8 constant TD_XFAM_FPU = 0x0000000000000001; // Enabled FPU (always enabled)
-    bytes8 constant TD_XFAM_SSE = 0x0000000000000002; // Enabled SSE (always enabled)
+    // ============ TDX workload constants ============
 
-    // See section 3.4.1 in TDX Module ABI specification https://cdrdv2.intel.com/v1/dl/getContent/733579
-    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000; // Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux.
-    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000; // Enabled Supervisor Protection Keys (PKS)
-    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000; // Enabled Key Locker (KL)
+    /// @dev See section 11.5.3 in TDX Module v1.5 Base Architecture Specification https://www.intel.com/content/www/us/en/content-details/733575/intel-tdx-module-v1-5-base-architecture-specification.html
+    /// @notice Enabled FPU (always enabled)
+    bytes8 constant TD_XFAM_FPU = 0x0000000000000001;
+    /// @notice Enabled SSE (always enabled)
+    bytes8 constant TD_XFAM_SSE = 0x0000000000000002;
 
-    // Mapping from workloadId to its metadata (commit hash and source locators)
-    // This is only updateable by governance (i.e. the owner) of the Policy contract.
-    // Adding, and removing a workload is O(1).
-    // The critical `isAllowedPolicy` function is now O(1) since we can directly check if a workloadId exists
-    // in the mapping
+    /// @dev See section 3.4.1 in TDX Module ABI specification https://cdrdv2.intel.com/v1/dl/getContent/733579
+    /// @notice Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux
+    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
+    /// @notice Enabled Supervisor Protection Keys (PKS)
+    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000;
+    /// @notice Enabled Key Locker (KL)
+    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
+
+    /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
+    /// @dev This is only updateable by governance (i.e. the owner) of the Policy contract
+    /// Adding and removing a workload is O(1).
+    /// This means the critical `isAllowedPolicy` function is O(1) since we can directly check if a workloadId exists
+    /// in the mapping
     mapping(bytes32 => WorkloadMetadata) public approvedWorkloads;
 
+    /// @notice Address of the FlashtestationRegistry contract that verifies TEE quotes
     address public registry;
 
-    // only v1 supported for now, but this will change with a contract upgrade
-    // Note: we have to use a non-constant array because solidity only supports constant arrays
-    // of value or bytes type. This means in future upgrades the upgrade logic will need to
-    // account for adding new versions to the array
+    /// @notice Array of supported flashtestation protocol versions
+    /// @dev Only v1 supported for now, but this will change with a contract upgrade
+    /// Note: we have to use a non-constant array because solidity only supports constant arrays
+    /// of value or bytes type. This means in future upgrades the upgrade logic will need to
+    /// account for adding new versions to the array
     uint256[] public SUPPORTED_VERSIONS;
 
-    // Tracks nonces for EIP-712 signatures to prevent replay attacks
+    /// @notice Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
-    // Gap for future contract upgrades
-    uint256[48] __gap;
+    /// @dev Storage gap to allow for future storage variable additions in upgrades
+    /// @dev This reserves 46 storage slots (out of 50 total - 4 used for approvedWorkloads, registry, SUPPORTED_VERSIONS and nonces)
+    uint256[46] __gap;
 
-    // Errors
+    // ============ Errors ============
 
     error WorkloadAlreadyInPolicy();
     error WorkloadNotInPolicy();
@@ -84,22 +94,29 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     error InvalidNonce(uint256 expected, uint256 provided);
     error CommitHashLengthError(uint256 length);
 
-    // Events
+    // ============ Events ============
 
     event WorkloadAddedToPolicy(WorkloadId workloadId);
     event WorkloadRemovedFromPolicy(WorkloadId workloadId);
     event RegistrySet(address registry);
+    /// @notice Emitted when a block builder proof is successfully verified
+    /// @param caller The address that called the verification function (TEE address)
+    /// @param workloadId The workload identifier of the TEE
+    /// @param blockNumber The block number when the verification occurred
+    /// @param version The flashtestation protocol version used
+    /// @param blockContentHash The hash of the block content
+    /// @param commitHash The git commit hash associated with the workload
     event BlockBuilderProofVerified(
         address caller,
         WorkloadId workloadId,
         uint256 blockNumber,
         uint8 version,
         bytes32 blockContentHash,
-        string commit_hash
+        string commitHash
     );
 
     /**
-     * Initializer to set the FlashtestationRegistry contract, which verifies TEE quotes
+     * @notice Initializer to set the FlashtestationRegistry contract which verifies TEE quotes and the initial owner of the contract
      * @param _initialOwner The address of the initial owner of the contract
      * @param _registry The address of the registry contract
      */
@@ -111,9 +128,11 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         emit RegistrySet(_registry);
     }
 
+    /// @notice Restricts upgrades to owner only
+    /// @param newImplementation The address of the new implementation contract
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /// @notice Verify a block builder proof
+    /// @notice Verify a block builder proof with a Flashtestation Transaction
     /// @param version The version of the flashtestation's protocol used to generate the block builder proof
     /// @param blockContentHash The hash of the block content
     /// @notice This function will only succeed if the caller is a registered TEE-controlled address from an attested TEE
@@ -127,7 +146,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         _verifyBlockBuilderProof(msg.sender, version, blockContentHash);
     }
 
-    /// @notice Verify a block builder proof using EIP-712 signatures
+    /// @notice Verify a block builder proof with a Flashtestation Transaction using EIP-712 signatures
     /// @param version The version of the flashtestation's protocol used to generate the block builder proof
     /// @param blockContentHash The hash of the block content
     /// @param nonce The nonce to use for the EIP-712 signature
@@ -196,7 +215,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         return false;
     }
 
-    /// @notice Check if an address is allowed under any workload in the policy
+    /// @notice Check if this TEE-controlled address has registered a valid TEE workload with the registry, and
+    /// if the workload is approved under this policy
     /// @param teeAddress The TEE-controlled address
     /// @return allowed True if the TEE is valid for any workload in the policy
     /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
@@ -218,9 +238,11 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         return (false, WorkloadId.wrap(0));
     }
 
-    // Application specific mapping of registration data to a workload identifier
-    // Think of the workload identifier as the version of the application for governance
-    // The workload id verifiably maps to a version of source code for the VM image
+    /// @notice Application specific mapping of registration data to a workload identifier
+    /// @dev Think of the workload identifier as the version of the application for governance.
+    /// The workloadId verifiably maps to a version of source code that builds the TEE VM image
+    /// @param registration The registration data from a TEE device
+    /// @return The computed workload identifier
     function workloadIdForTDRegistration(FlashtestationRegistry.RegisteredTEE memory registration)
         public
         pure
@@ -302,6 +324,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     }
 
     /// @notice Get the metadata for a workload
+    /// @param workloadId The workload identifier to query
+    /// @return The metadata associated with the workload
     function getWorkloadMetadata(WorkloadId workloadId) external view returns (WorkloadMetadata memory) {
         return approvedWorkloads[WorkloadId.unwrap(workloadId)];
     }

@@ -148,7 +148,6 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = mockf200.output;
         bytes memory mockQuote = mockf200.quote;
         address expectedAddress = mockf200.teeAddress;
-        bytes32 expectedQuoteHash = keccak256(mockQuote);
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
@@ -156,9 +155,7 @@ contract FlashtestationRegistryTest is Test {
         registry.registerTEEService(mockQuote, mockf200.extData);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IFlashtestationRegistry.TEEServiceAlreadyRegistered.selector, expectedAddress, expectedQuoteHash
-            )
+            abi.encodeWithSelector(IFlashtestationRegistry.TEEServiceAlreadyRegistered.selector, expectedAddress)
         );
         vm.prank(expectedAddress);
         registry.registerTEEService(mockQuote, mockf200.extData);
@@ -297,14 +294,13 @@ contract FlashtestationRegistryTest is Test {
         bytes memory mockOutput = mockf200.output;
         bytes memory mockQuote = mockf200.quote;
         address teeAddress = mockf200.teeAddress;
-        bytes32 quoteHash = keccak256(mockQuote);
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
         vm.prank(teeAddress);
         registry.registerTEEService(mockQuote, mockf200.extData);
         // Now, invalidate with success==true (still valid)
 
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
-        vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.TEEIsStillValid.selector, teeAddress, quoteHash));
+        vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.TEEIsStillValid.selector, teeAddress));
         registry.invalidateAttestation(teeAddress);
     }
 
