@@ -37,7 +37,7 @@ You can find a [specification for the protocol here](https://github.com/flashbot
 
 1. **Verify Flashtestation Transaction**
 
-   a. Policy contract checks signature against registry of registered TEEs
+   a. Policy contract checks sender's signature against registry of registered TEEs
 
    b. Policy computes WorkloadId from the stored report body
 
@@ -55,13 +55,13 @@ You can find a [specification for the protocol here](https://github.com/flashbot
 
    a. Can only be done by the policy owner
 
-   b. WorkloadId is computed externally from TEE's report body
+   b. WorkloadId is computed from TEE's report body
 
    c. Once added, TEEs with matching WorkloadId can prove they built blocks via "Verify Flashtestation Transaction"
 
 1. **Removing a WorkloadId from a Policy**
 
-   a. Done when TEE software is outdated or has bugs
+   a. Executed when the TEE software for this workloadId is outdated or has bugs
 
    b. Can only be done by the policy owner
 
@@ -129,6 +129,29 @@ Then, to deploy, run:
 forge script --chain 1301 script/BlockBuilderPolicy.s.sol:BlockBuilderPolicyScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv
 ```
 
+#### MockQuotes
+
+**FetchRemoteQuote**
+
+Create a raw attestation quote and store it in `script/raw_tdx_quotes/`. This is needed for the `RegisterTEEScript` script for its $PATH_TO_ATTESTATION_QUOTE argument
+
+Before executing this script, provide correct values for the following env vars:
+
+```
+# the TEE-controlled address you want to fetch a remote quote for
+# this address will be embedded in the quote's report data.
+# Note: **you should control the private key for this address** because
+# later on you will need to send transactions using this address
+TEE_ADDRESS=0x0000000000000000000000000000000000000042
+
+```
+
+Then, to fetch the quote, run:
+
+```
+forge script script/MockQuotes.s.sol:FetchRemoteQuote --rpc-url $UNICHAIN_SEPOLIA_RPC_URL -vvvv
+```
+
 #### Interactions
 
 **RegisterTEEScript**
@@ -141,7 +164,8 @@ Before executing this script, provide correct values for the following env vars:
 # this is the contract FlashtestationRegistry you deployed up above
 FLASHTESTATION_REGISTRY_ADDRESS=0x0000000000000000000000000000000000000042
 
-# this is an absolute path to the raw attestation quote, see the example at: script/raw_tdx_quotes/342ad26adb6185cda1aea67ee5f35e9cb5c9cec32b03e8d4382492ca35d53331e906b20edbe46d9337b7b2b2248c633cc2a3aeb3a0ce480dd22b5950860c8a2c
+# this is an absolute path to the raw attestation quote, see the example at: script/raw_tdx_quotes/0x12c14e56d585Dcf3B36f37476c00E78bA9363742/quote.bin.
+# If you used `FetchRemoteQuote` script above, you can use the path that the quote was written to by that script for this env var
 PATH_TO_ATTESTATION_QUOTE=/some/path/quote.bin
 ```
 
@@ -159,32 +183,65 @@ Then, to execute, run:
 forge script --chain 1301 script/Interactions.s.sol:RegisterTEEScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv --skip-simulation
 ```
 
-**AddWorkloadToPolicyScript**
+**ComputeWorkloadIdScript**
 
-Add a workloadId that was previously registered with the `RegisterTEEScript` script above
+Prints out the WorkloadId for a TEE registered by TEE-controlled address (like in the `RegisterTEEScript` above).
+
+This is needed for the `AddWorkloadToPolicyScript` and `RemoveWorkloadToPolicyScript` scripts below
 
 Before executing this script, provide correct values for the following env vars:
 
 ```
-# this is the contract BlockBuilderPolicy you deployed up above
+# the TEE-controlled address that is embedded in the first 20 bytes of the report data from the
+# attestation quote passed in `RegisterTEEScript`. Look at the $PATH_TO_ATTESTATION_QUOTE env var
+# you used in `RegisterTEEScript` and use the address from that path
+TEE_ADDRESS=0x0000000000000000000000000000000000000042
+
+# this is the proxy address of the FlashtestationRegistry contract you deployed in FlashtestationRegistryScript
+FLASHTESTATION_REGISTRY_ADDRESS=0x0000000000000000000000000000000000000042
+
+# this is the proxy address of the BlockBuilderPolicy contract you deployed in BlockBuilderPolicyScript
 ADDRESS_BLOCK_BUILDER_POLICY=0x0000000000000000000000000000000000000042
-
-# this is the workload ID computed from the TEE's measurement registers
-# You can compute this from a registered TEE's report body using BlockBuilderPolicy.workloadIdForTDRegistration
-WORKLOAD_ID=0xeee********************************************************9164e
-
-# this is the commit hash of the source code that was used to build the TEE image
-# identified by the WORKLOAD_ID above
-COMMIT_HASH=1234567890abcdef1234567890abcdef12345678
-
-# a comma-separated list of URLs that point to the source code that was used to build the TEE image identified by the WORKLOAD_ID above
-RECORD_LOCATORS=https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c, https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly
 ```
 
 Then, to execute, run:
 
 ```
+forge script --chain 1301 script/Interactions.s.sol:ComputeWorkloadIdScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL
+```
 
+**AddWorkloadToPolicyScript**
+
+Add a workloadId computed from the `ComputeWorkloadIdScript` script above
+
+Before executing this script, provide correct values for the following env vars:
+
+```
+
+# this is the contract BlockBuilderPolicy you deployed up above
+
+ADDRESS_BLOCK_BUILDER_POLICY=0x0000000000000000000000000000000000000042
+
+# this is the workload ID computed from the TEE's measurement registers
+
+# You can compute this from a registered TEE's report body using BlockBuilderPolicy.workloadIdForTDRegistration
+
+WORKLOAD_ID=0xeee**************************\*\*\*\***************************9164e
+
+# this is the commit hash of the source code that was used to build the TEE image
+
+# identified by the WORKLOAD_ID above
+
+COMMIT_HASH=1234567890abcdef1234567890abcdef12345678
+
+# a comma-separated list of URLs that point to the source code that was used to build the TEE image identified by the WORKLOAD_ID above
+
+RECORD_LOCATORS="https://github.com/flashbots/flashbots-images/commit/a5aa6c75fbecc4b88faf4886cbd3cb2c667f4a8c, https://ipfs.io/ipfs/bafybeihkoviema7g3gxyt6la7vd5ho32ictqbilu3wnlo3rs7ewhnp7lly"
+
+```
+
+Then, to execute, run:
+
+```
 forge script --chain 1301 script/Interactions.s.sol:AddWorkloadToPolicyScript --rpc-url $UNICHAIN_SEPOLIA_RPC_URL --broadcast --verify --interactives 1 -vvvv
-
 ```

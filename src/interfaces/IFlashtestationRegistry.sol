@@ -31,6 +31,5 @@ interface IFlashtestationRegistry {
     error TEEServiceNotRegistered(address teeAddress);
     error TEEServiceAlreadyInvalid(address teeAddress);
     error TEEIsStillValid(address teeAddress);
-    error InvalidSignature();
     error InvalidNonce(uint256 expected, uint256 provided);
 }

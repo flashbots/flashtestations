@@ -4,8 +4,42 @@ pragma solidity 0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 import {BlockBuilderPolicy, WorkloadId} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
+import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
 import {DeploymentUtils} from "./utils/DeploymentUtils.sol";
 import {StringUtils} from "../src/utils/StringUtils.sol";
+
+/// @title ComputeWorkloadIdScript
+/// @notice Script to compute the WorkloadId for a registered TEE using the FlashtestationRegistry and BlockBuilderPolicy
+contract ComputeWorkloadIdScript is Script {
+    function setUp() public {}
+
+    function run() public view {
+        // Read environment variables
+        address teeAddress = vm.envAddress("TEE_ADDRESS");
+        address registryAddress = vm.envAddress("FLASHTESTATION_REGISTRY_ADDRESS");
+        address policyAddress = vm.envAddress("ADDRESS_BLOCK_BUILDER_POLICY");
+
+        // Log input addresses
+        console.log("TEE_ADDRESS:");
+        console.logAddress(teeAddress);
+        console.log("FLASHTESTATION_REGISTRY_ADDRESS:");
+        console.logAddress(registryAddress);
+        console.log("ADDRESS_BLOCK_BUILDER_POLICY:");
+        console.logAddress(policyAddress);
+
+        // Instantiate contracts
+        FlashtestationRegistry registry = FlashtestationRegistry(registryAddress);
+        BlockBuilderPolicy policy = BlockBuilderPolicy(policyAddress);
+
+        // Get the actual workloadId from the registration
+        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(teeAddress);
+        WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
+
+        // Print the workloadId as a hex string
+        console.log("Computed WorkloadId:");
+        console.logBytes32(WorkloadId.unwrap(actualWorkloadId));
+    }
+}
 
 /// @title AddWorkloadToPolicyScript
 /// @notice A simple helper script to add a workload to the policy
