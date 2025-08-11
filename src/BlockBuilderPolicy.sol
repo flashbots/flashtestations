@@ -28,6 +28,17 @@ struct WorkloadMetadata {
 }
 
 /**
+ * @notice Cached workload information for gas optimization
+ * @dev Stores computed workloadId and associated quoteHash to avoid expensive recomputation
+ */
+struct CachedWorkload {
+    /// @notice The computed workload identifier
+    WorkloadId workloadId;
+    /// @notice The keccak256 hash of the raw quote used to compute this workloadId
+    bytes32 quoteHash;
+}
+
+/**
  * @title BlockBuilderPolicy
  * @notice A reference implementation of a policy contract for the FlashtestationRegistry
  * @notice A Policy is a collection of related WorkloadIds. A Policy exists to specify which
@@ -61,6 +72,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @notice Enabled Key Locker (KL)
     bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
 
+    // Storage Variables
+
     /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
     /// @dev This is only updateable by governance (i.e. the owner) of the Policy contract
     /// Adding and removing a workload is O(1).
@@ -74,9 +87,14 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @notice Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
+    /// @notice Cache of computed workloadIds to avoid expensive recomputation
+    /// @dev Maps teeAddress to cached workload information for gas optimization
+    mapping(address => CachedWorkload) private cachedWorkloads;
+
     /// @dev Storage gap to allow for future storage variable additions in upgrades
-    /// @dev This reserves 45 storage slots (out of 50 total - 4 used for approvedWorkloads, registry and nonces)
-    uint256[45] __gap;
+
+    /// @dev This reserves 46 storage slots (out of 50 total - 4 used for approvedWorkloads, registry, nonces, and cachedWorkloads)
+    uint256[46] __gap;
 
     // ============ Errors ============
 
@@ -180,7 +198,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
     /// and it is not needed to be called by other contracts
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
-        // Check if the caller is an authorized TEE block builder for our Policy
+        // Check if the caller is an authorized TEE block builder for our Policy and update cache
         (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
         require(allowed, UnauthorizedBlockBuilder(teeAddress));
 
@@ -198,22 +216,55 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
     /// @notice Check if this TEE-controlled address has registered a valid TEE workload with the registry, and
     /// if the workload is approved under this policy
+    /// @dev This function is not a view function, because in order to make it gas-efficient we need to
+    /// store and update a cache of the workloadId for each TEE-controlled address. This cache is updated
+    /// whenever the underlying TEERegistration changes, and is used to avoid expensive recomputations of
+    /// the workloadId for each TEE-controlled address
     /// @param teeAddress The TEE-controlled address
     /// @return allowed True if the TEE is valid for any workload in the policy
     /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
-    function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
-        (bool isValid, FlashtestationRegistry.RegisteredTEE memory registration) =
-            FlashtestationRegistry(registry).getRegistration(teeAddress);
+    function isAllowedPolicy(address teeAddress) public returns (bool allowed, WorkloadId) {
+        // First, check if we have a cached workload for this TEE
+        CachedWorkload memory cached = cachedWorkloads[teeAddress];
+
+        // Get the current registration status (fast path)
+        (bool isValid, bytes32 quoteHash) = FlashtestationRegistry(registry).getRegistrationStatus(teeAddress);
         if (!isValid) {
+            // Clear cache if TEE is no longer valid
+            if (WorkloadId.unwrap(cached.workloadId) != 0) {
+                delete cachedWorkloads[teeAddress];
+            }
             return (false, WorkloadId.wrap(0));
         }
 
-        WorkloadId workloadId = workloadIdForTDRegistration(registration);
-        bytes32 workloadKey = WorkloadId.unwrap(workloadId);
+        // Check if we've already fetched and computed the workloadId for this TEE
+        if (WorkloadId.unwrap(cached.workloadId) != 0 && cached.quoteHash == quoteHash) {
+            // Cache hit - verify the workload is still a part of this policy's approved workloads
+            if (bytes(approvedWorkloads[WorkloadId.unwrap(cached.workloadId)].commitHash).length > 0) {
+                return (true, cached.workloadId);
+            } else {
+                // The workload is no longer approved, so the policy is no longer valid for this TEE.
+                // We clear the cache to avoid future lookups for this TEE
+                delete cachedWorkloads[teeAddress];
+                return (false, WorkloadId.wrap(0));
+            }
+        } else {
+            // Cache miss or quote changed - perform full registration lookup and recompute cache
 
-        // Check if the workload exists in our approved workloads mapping
-        if (bytes(approvedWorkloads[workloadKey].commitHash).length > 0) {
-            return (true, workloadId);
+            (, FlashtestationRegistry.RegisteredTEE memory registration) =
+                FlashtestationRegistry(registry).getRegistration(teeAddress);
+
+            WorkloadId workloadId = workloadIdForTDRegistration(registration);
+
+            cachedWorkloads[teeAddress] = CachedWorkload({workloadId: workloadId, quoteHash: quoteHash});
+
+            // Check if the workload exists in our approved workloads mapping
+            if (
+                bytes(approvedWorkloads[WorkloadId.unwrap(cachedWorkloads[teeAddress].workloadId)].commitHash).length
+                    > 0
+            ) {
+                return (true, workloadId);
+            }
         }
 
         return (false, WorkloadId.wrap(0));

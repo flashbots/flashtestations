@@ -197,7 +197,8 @@ contract FlashtestationRegistry is
             rawQuote: rawQuote,
             parsedReportBody: td10ReportBody,
             extendedRegistrationData: extendedRegistrationData,
-            isValid: true
+            isValid: true,
+            quoteHash: keccak256(rawQuote)
         });
 
         emit TEEServiceRegistered(teeAddress, rawQuote, previouslyRegistered);
@@ -238,6 +239,19 @@ contract FlashtestationRegistry is
      */
     function getRegistration(address teeAddress) public view returns (bool, RegisteredTEE memory) {
         return (registeredTEEs[teeAddress].isValid, registeredTEEs[teeAddress]);
+    }
+
+    /**
+     * @notice Fetches only the validity status and quote hash for a given TEE address
+     * @param teeAddress The TEE-controlled address to check
+     * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
+     * @return quoteHash The keccak256 hash of the raw quote
+     * @dev This is a gas-optimized version of getRegistration that only returns the minimal data
+     * needed for caching optimizations in policy contracts
+     */
+    function getRegistrationStatus(address teeAddress) external view returns (bool isValid, bytes32 quoteHash) {
+        RegisteredTEE storage tee = registeredTEEs[teeAddress];
+        return (tee.isValid, tee.quoteHash);
     }
 
     /**

@@ -15,6 +15,7 @@ interface IFlashtestationRegistry {
         bytes rawQuote; // The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
         TD10ReportBody parsedReportBody; // Parsed form of the quote to avoid unnecessary parsing
         bytes extendedRegistrationData; // Any additional attested data for application purposes. This data is attested by a bytes32 in the attestation's reportData, where that bytes32 is a hash of the ABI-encoded values in the extendedRegistrationData. This registration data can be anything that's needed for your app, for instance an vmOperatorIdPublicKey that allows you to verify signatures from your TEE operator, parts of runtime configuration of the VM, configuration submitted by the VM operator, for example the public IP of the instance,
+        bytes32 quoteHash; // keccak256 hash of rawQuote for caching purposes
     }
 
     // Events
