@@ -97,6 +97,7 @@ contract FlashtestationRegistry is
      */
     function registerTEEService(bytes calldata rawQuote, bytes calldata extendedRegistrationData)
         external
+        payable
         nonReentrant
     {
         doRegister(msg.sender, rawQuote, extendedRegistrationData);
@@ -122,7 +123,7 @@ contract FlashtestationRegistry is
         bytes calldata extendedRegistrationData,
         uint256 nonce,
         bytes calldata signature
-    ) external nonReentrant {
+    ) external payable nonReentrant {
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
         bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistrationData, nonce));
 
@@ -153,7 +154,7 @@ contract FlashtestationRegistry is
         limitBytesSize(rawQuote)
         limitBytesSize(extendedRegistrationData)
     {
-        (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain(rawQuote);
+        (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain{value: msg.value}(rawQuote);
         if (!success) {
             revert InvalidQuote(output);
         }
@@ -255,7 +256,7 @@ contract FlashtestationRegistry is
      * in which a quote can be invalidated (tcbrecovery, certificate revocation etc). This would allow
      * much cheaper, bulk invalidation of all quotes using a now-outdated tcbinfo for example.
      */
-    function invalidateAttestation(address teeAddress) external {
+    function invalidateAttestation(address teeAddress) external payable {
         // check to make sure it even makes sense to invalidate the TEE-controlled address
         // if the TEE-controlled address is not registered with the FlashtestationRegistry,
         // it doesn't make sense to invalidate the attestation
@@ -271,7 +272,7 @@ contract FlashtestationRegistry is
         // now we check the attestation, and invalidate the TEE if it's no longer valid.
         // This will only happen if the DCAP Endorsements associated with the TEE's quote
         // have been updated
-        (bool success,) = attestationContract.verifyAndAttestOnChain(registeredTEE.rawQuote);
+        (bool success,) = attestationContract.verifyAndAttestOnChain{value: msg.value}(registeredTEE.rawQuote);
         if (success) {
             // if the attestation is still valid, then this function call is a no-op except for
             // wasting the caller's gas. So we revert here to signal that the TEE is still valid.

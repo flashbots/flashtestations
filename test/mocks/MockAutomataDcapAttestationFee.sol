@@ -20,13 +20,24 @@ contract MockAutomataDcapAttestationFee {
     }
 
     mapping(bytes => QuoteResult) public quoteResults;
+    uint256 public baseFee; // fixed fee in wei
 
-    function verifyAndAttestOnChain(bytes calldata rawQuote) external view returns (bool, bytes memory) {
+    error InsufficientFee(uint256 required, uint256 provided);
+
+    function verifyAndAttestOnChain(bytes calldata rawQuote) external payable returns (bool, bytes memory) {
+        if (msg.value < baseFee) {
+            revert InsufficientFee(baseFee, msg.value);
+        }
+
         QuoteResult memory result = quoteResults[rawQuote];
         return (result.success, result.output);
     }
 
     function setQuoteResult(bytes calldata rawQuote, bool _success, bytes memory _output) public {
         quoteResults[rawQuote] = QuoteResult(_success, _output);
+    }
+
+    function setBaseFee(uint256 _baseFee) public {
+        baseFee = _baseFee;
     }
 }
