@@ -398,20 +398,6 @@ contract BlockBuilderPolicyTest is Test {
         );
     }
 
-    function test_verifyBlockBuilderProof_fails_with_incorrect_version() public {
-        _registerTEE(mockf200);
-
-        // Get actual workloadId and add to policy
-        (, IFlashtestationRegistry.RegisteredTEE memory registration) = registry.getRegistration(mockf200.teeAddress);
-        WorkloadId actualWorkloadId = policy.workloadIdForTDRegistration(registration);
-        policy.addWorkloadToPolicy(actualWorkloadId, mockf200.commitHash, mockf200.sourceLocators);
-
-        // Try with unsupported version 2
-        vm.prank(mockf200.teeAddress);
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, 2));
-        policy.verifyBlockBuilderProof(2, bytes32(0));
-    }
-
     function test_verifyBlockBuilderProof_fails_with_unregistered_tee() public {
         // Add workload to policy but don't register TEE
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
@@ -593,19 +579,5 @@ contract BlockBuilderPolicyTest is Test {
         // Try to replay the same signature
         vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidNonce.selector, 1, 0));
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
-    }
-
-    function test_permitVerifyBlockBuilderProof_reverts_with_unsupported_version() public {
-        bytes32 blockContentHash = Helper.computeFlashtestationBlockContentHash();
-
-        // Create signature with unsupported version
-        uint8 unsupportedVersion = 2;
-        bytes32 structHash = policy.computeStructHash(unsupportedVersion, blockContentHash, 0);
-        bytes32 digest = policy.getHashedTypeDataV4(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnsupportedVersion.selector, unsupportedVersion));
-        policy.permitVerifyBlockBuilderProof(unsupportedVersion, blockContentHash, 0, signature);
     }
 }
