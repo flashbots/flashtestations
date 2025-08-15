@@ -199,7 +199,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// and it is not needed to be called by other contracts
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         // Check if the caller is an authorized TEE block builder for our Policy and update cache
-        (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
+        (bool allowed, WorkloadId workloadId) = _cachedIsAllowedPolicy(teeAddress);
         require(allowed, UnauthorizedBlockBuilder(teeAddress));
 
         // At this point, we know:
@@ -216,26 +216,51 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
     /// @notice Check if this TEE-controlled address has registered a valid TEE workload with the registry, and
     /// if the workload is approved under this policy
-    /// @dev This function is not a view function, because in order to make it gas-efficient we need to
-    /// store and update a cache of the workloadId for each TEE-controlled address. This cache is updated
-    /// whenever the underlying TEERegistration changes, and is used to avoid expensive recomputations of
-    /// the workloadId for each TEE-controlled address
     /// @param teeAddress The TEE-controlled address
-    /// @return allowed True if the TEE is valid for any workload in the policy
-    /// @return workloadId The workloadId of the TEE that is valid for the policy, or 0 if the TEE is not valid for any workload in the policy
-    function isAllowedPolicy(address teeAddress) public returns (bool allowed, WorkloadId) {
-        // First, check if we have a cached workload for this TEE
-        CachedWorkload memory cached = cachedWorkloads[teeAddress];
+    /// @return allowed True if the TEE is using an approved workload in the policy
+    /// @return workloadId The workloadId of the TEE that is using an approved workload in the policy, or 0 if
+    /// the TEE is not using an approved workload in the policy
+    function isAllowedPolicy(address teeAddress) public view returns (bool allowed, WorkloadId) {
+        // Get full registration data and compute workload ID
+        (, FlashtestationRegistry.RegisteredTEE memory registration) =
+            FlashtestationRegistry(registry).getRegistration(teeAddress);
 
+        // Invalid Registrations means the attestation used to register the TEE is no longer valid
+        // and so we cannot trust any input from the TEE
+        if (!registration.isValid) {
+            return (false, WorkloadId.wrap(0));
+        }
+
+        WorkloadId workloadId = workloadIdForTDRegistration(registration);
+
+        // Check if the workload exists in our approved workloads mapping
+        if (bytes(approvedWorkloads[WorkloadId.unwrap(workloadId)].commitHash).length > 0) {
+            return (true, workloadId);
+        }
+
+        return (false, WorkloadId.wrap(0));
+    }
+
+    /// @notice isAllowedPolicy but with caching to reduce gas costs
+    /// @dev This function is only used by the verifyBlockBuilderProof function, which needs to be as efficient as possible
+    /// because it is called onchain for every flashblock. The workloadId is cached to avoid expensive recomputation
+    /// @dev A careful reader will notice that this function does not delete stale cache entries. It overwrites them
+    /// if the underlying TEE registration is still valid. But for stale cache entries in every other scenario, the
+    /// cache entry persists indefinitely. This is because every other instance results in a return value of (false, 0)
+    /// to the caller (which is always the verifyBlockBuilderProof function) and it immediately reverts.
+    /// @param teeAddress The TEE-controlled address
+    /// @return allowed True if the TEE is using an approved workload in the policy
+    /// @return workloadId The workloadId of the TEE that is using an approved workload in the policy, or 0 if
+    ///the TEE is not using an approved workload in the policy
+    function _cachedIsAllowedPolicy(address teeAddress) private returns (bool allowed, WorkloadId) {
         // Get the current registration status (fast path)
         (bool isValid, bytes32 quoteHash) = FlashtestationRegistry(registry).getRegistrationStatus(teeAddress);
         if (!isValid) {
-            // Clear cache if TEE is no longer valid
-            if (WorkloadId.unwrap(cached.workloadId) != 0) {
-                delete cachedWorkloads[teeAddress];
-            }
             return (false, WorkloadId.wrap(0));
         }
+
+        // Now, check if we have a cached workload for this TEE
+        CachedWorkload memory cached = cachedWorkloads[teeAddress];
 
         // Check if we've already fetched and computed the workloadId for this TEE
         if (WorkloadId.unwrap(cached.workloadId) != 0 && cached.quoteHash == quoteHash) {
@@ -243,31 +268,20 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
             if (bytes(approvedWorkloads[WorkloadId.unwrap(cached.workloadId)].commitHash).length > 0) {
                 return (true, cached.workloadId);
             } else {
-                // The workload is no longer approved, so the policy is no longer valid for this TEE.
-                // We clear the cache to avoid future lookups for this TEE
-                delete cachedWorkloads[teeAddress];
+                // The workload is no longer approved, so the policy is no longer valid for this TEE\
                 return (false, WorkloadId.wrap(0));
             }
         } else {
-            // Cache miss or quote changed - perform full registration lookup and recompute cache
+            // Cache miss or quote changed - use the view function to get the result
+            (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
 
-            (, FlashtestationRegistry.RegisteredTEE memory registration) =
-                FlashtestationRegistry(registry).getRegistration(teeAddress);
-
-            WorkloadId workloadId = workloadIdForTDRegistration(registration);
-
-            cachedWorkloads[teeAddress] = CachedWorkload({workloadId: workloadId, quoteHash: quoteHash});
-
-            // Check if the workload exists in our approved workloads mapping
-            if (
-                bytes(approvedWorkloads[WorkloadId.unwrap(cachedWorkloads[teeAddress].workloadId)].commitHash).length
-                    > 0
-            ) {
-                return (true, workloadId);
+            if (allowed) {
+                // Update cache with the new workload ID
+                cachedWorkloads[teeAddress] = CachedWorkload({workloadId: workloadId, quoteHash: quoteHash});
             }
-        }
 
-        return (false, WorkloadId.wrap(0));
+            return (allowed, workloadId);
+        }
     }
 
     /// @notice Application specific mapping of registration data to a workload identifier
