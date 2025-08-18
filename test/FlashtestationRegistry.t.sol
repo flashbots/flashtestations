@@ -144,6 +144,14 @@ contract FlashtestationRegistryTest is Test {
         registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
+    function test_reverts_with_invalid_attestation_contract() public {
+        address implementation = address(new FlashtestationRegistry());
+        vm.expectRevert(IFlashtestationRegistry.InvalidAttestationContract.selector);
+        UnsafeUpgrades.deployUUPSProxy(
+            implementation, abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(0x0)))
+        );
+    }
+
     function test_reverts_with_registering_same_quote_twice() public {
         bytes memory mockOutput = mockf200.output;
         bytes memory mockQuote = mockf200.quote;

@@ -80,6 +80,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
     // ============ Errors ============
 
+    error InvalidRegistry();
     error WorkloadAlreadyInPolicy();
     error WorkloadNotInPolicy();
     error UnauthorizedBlockBuilder(address caller); // the teeAddress is not associated with a valid TEE workload
@@ -115,6 +116,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     function initialize(address _initialOwner, address _registry) external initializer {
         __Ownable_init(_initialOwner);
         __EIP712_init("BlockBuilderPolicy", "1");
+        require(_registry != address(0), InvalidRegistry());
+
         registry = _registry;
         emit RegistrySet(_registry);
     }

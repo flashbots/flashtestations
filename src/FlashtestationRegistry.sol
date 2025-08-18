@@ -65,6 +65,7 @@ contract FlashtestationRegistry is
     function initialize(address owner, address _attestationContract) external initializer {
         __Ownable_init(owner);
         __EIP712_init("FlashtestationRegistry", "1");
+        require(_attestationContract != address(0), InvalidAttestationContract());
         attestationContract = IAttestation(_attestationContract);
     }
 

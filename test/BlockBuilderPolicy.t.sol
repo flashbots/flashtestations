@@ -118,6 +118,38 @@ contract BlockBuilderPolicyTest is Test {
         registry.registerTEEService(mock.quote, bytes("")); // Add empty extended data
     }
 
+    function test_initialize_reverts_if_invalid_owner() public {
+        attestationContract = new MockAutomataDcapAttestationFee();
+        address registryImplementation = address(new FlashtestationRegistry());
+        address registryProxy = UnsafeUpgrades.deployUUPSProxy(
+            registryImplementation,
+            abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
+        );
+        registry = FlashtestationRegistry(registryProxy);
+        address policyImplementation = address(new BlockBuilderPolicy());
+
+        vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0x0)));
+        UnsafeUpgrades.deployUUPSProxy(
+            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (address(0), address(registry)))
+        );
+    }
+
+    function test_initialize_reverts_if_invalid_registry() public {
+        attestationContract = new MockAutomataDcapAttestationFee();
+        address registryImplementation = address(new FlashtestationRegistry());
+        address registryProxy = UnsafeUpgrades.deployUUPSProxy(
+            registryImplementation,
+            abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
+        );
+        registry = FlashtestationRegistry(registryProxy);
+        address policyImplementation = address(new BlockBuilderPolicy());
+
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidRegistry.selector));
+        UnsafeUpgrades.deployUUPSProxy(
+            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(0)))
+        );
+    }
+
     function test_addWorkloadToPolicy_and_getter_for_workload_metadata() public {
         // Add a workload
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
