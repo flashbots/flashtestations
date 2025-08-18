@@ -263,9 +263,10 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         CachedWorkload memory cached = cachedWorkloads[teeAddress];
 
         // Check if we've already fetched and computed the workloadId for this TEE
-        if (WorkloadId.unwrap(cached.workloadId) != 0 && cached.quoteHash == quoteHash) {
+        bytes32 workloadId = WorkloadId.unwrap(cached.workloadId);
+        if (workloadId != 0 && cached.quoteHash == quoteHash) {
             // Cache hit - verify the workload is still a part of this policy's approved workloads
-            if (bytes(approvedWorkloads[WorkloadId.unwrap(cached.workloadId)].commitHash).length > 0) {
+            if (bytes(approvedWorkloads[workloadId].commitHash).length > 0) {
                 return (true, cached.workloadId);
             } else {
                 // The workload is no longer approved, so the policy is no longer valid for this TEE\
