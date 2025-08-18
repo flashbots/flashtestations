@@ -249,10 +249,10 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// cache entry persists indefinitely. This is because every other instance results in a return value of (false, 0)
     /// to the caller (which is always the verifyBlockBuilderProof function) and it immediately reverts.
     /// @param teeAddress The TEE-controlled address
-    /// @return allowed True if the TEE is using an approved workload in the policy
-    /// @return workloadId The workloadId of the TEE that is using an approved workload in the policy, or 0 if
-    ///the TEE is not using an approved workload in the policy
-    function _cachedIsAllowedPolicy(address teeAddress) private returns (bool allowed, WorkloadId) {
+    /// @return True if the TEE is using an approved workload in the policy
+    /// @return The workloadId of the TEE that is using an approved workload in the policy, or 0 if
+    /// the TEE is not using an approved workload in the policy
+    function _cachedIsAllowedPolicy(address teeAddress) private returns (bool, WorkloadId) {
         // Get the current registration status (fast path)
         (bool isValid, bytes32 quoteHash) = FlashtestationRegistry(registry).getRegistrationStatus(teeAddress);
         if (!isValid) {
