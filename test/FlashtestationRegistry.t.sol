@@ -178,7 +178,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory serializedOutput = Helper.serializeOutput(output);
 
         attestationContract.setQuoteResult(mockQuote, true, serializedOutput);
-        vm.expectRevert(QuoteParser.InvalidTEEVersion.selector, 0);
+        vm.expectRevert(abi.encodeWithSelector(QuoteParser.InvalidTEEVersion.selector, 0));
         registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
@@ -191,7 +191,7 @@ contract FlashtestationRegistryTest is Test {
         bytes memory serializedOutput = Helper.serializeOutput(output);
 
         attestationContract.setQuoteResult(mockQuote, true, serializedOutput);
-        vm.expectRevert(QuoteParser.InvalidTEEType.selector, 0);
+        vm.expectRevert(abi.encodeWithSelector(QuoteParser.InvalidTEEType.selector, 0));
         registry.registerTEEService(mockQuote, mockf200.extData);
     }
 
