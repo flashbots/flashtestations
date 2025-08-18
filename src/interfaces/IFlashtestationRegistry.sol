@@ -23,6 +23,7 @@ interface IFlashtestationRegistry {
 
     // Errors
     error InvalidAttestationContract();
+    error ExpiredSignature(uint256 deadline);
     error InvalidQuote(bytes output);
     error InvalidReportDataLength(uint256 length);
     error InvalidRegistrationDataHash(bytes32 expected, bytes32 received);

@@ -38,7 +38,7 @@ contract FlashtestationRegistry is
 
     /// @notice EIP-712 Typehash, used in the permitRegisterTEEService function
     bytes32 public constant REGISTER_TYPEHASH =
-        keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistrationData,uint256 nonce)");
+        keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistrationData,uint256 nonce,uint256 deadline)");
 
     // Storage Variables
 
@@ -117,16 +117,18 @@ contract FlashtestationRegistry is
      * we can trust that it comes from the TEE because we verify that the hash derived from all of the variables in
      * extendedRegistrationData matches the hash in the TDX report data.
      * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
+     * @param deadline The blocktime after which this signature is no longer valid
      * @param signature The EIP-712 signature of the registration message
      */
     function permitRegisterTEEService(
         bytes calldata rawQuote,
         bytes calldata extendedRegistrationData,
         uint256 nonce,
+        uint256 deadline,
         bytes calldata signature
     ) external payable nonReentrant {
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
-        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistrationData, nonce));
+        bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistrationData, nonce, deadline));
 
         // Recover the signer, and ensure it matches the TEE-controlled address, otherwise we have no proof
         // whoever created the attestation quote has access to the private key
@@ -135,6 +137,8 @@ contract FlashtestationRegistry is
         // Verify the nonce
         uint256 expectedNonce = nonces[signer];
         require(nonce == expectedNonce, InvalidNonce(expectedNonce, nonce));
+
+        require(block.timestamp <= deadline, ExpiredSignature(deadline));
 
         // Increment the nonce so that any attempts at replaying this transaction will fail
         nonces[signer]++;
@@ -304,13 +308,17 @@ contract FlashtestationRegistry is
      * @param rawQuote The raw quote from the TEE device
      * @param extendedRegistrationData Abi-encoded attested data, application specific
      * @param nonce The nonce to use for the EIP-712 signature
+     * @param deadline The blocktime after which this signature is no longer valid
      * @return The struct hash for the EIP-712 signature
      */
-    function computeStructHash(bytes calldata rawQuote, bytes calldata extendedRegistrationData, uint256 nonce)
-        public
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(extendedRegistrationData), nonce));
+    function computeStructHash(
+        bytes calldata rawQuote,
+        bytes calldata extendedRegistrationData,
+        uint256 nonce,
+        uint256 deadline
+    ) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(extendedRegistrationData), nonce, deadline)
+        );
     }
 }
