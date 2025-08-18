@@ -189,7 +189,8 @@ contract FlashtestationRegistry is
             revert InvalidRegistrationDataHash(extendedDataReportHash, extendedRegistrationDataHash);
         }
 
-        bool previouslyRegistered = checkPreviousRegistration(teeAddress, rawQuote);
+        bytes32 newQuoteHash = keccak256(rawQuote);
+        bool previouslyRegistered = checkPreviousRegistration(teeAddress, newQuoteHash);
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
@@ -198,7 +199,7 @@ contract FlashtestationRegistry is
             parsedReportBody: td10ReportBody,
             extendedRegistrationData: extendedRegistrationData,
             isValid: true,
-            quoteHash: keccak256(rawQuote)
+            quoteHash: newQuoteHash
         });
 
         emit TEEServiceRegistered(teeAddress, rawQuote, previouslyRegistered);
@@ -206,6 +207,7 @@ contract FlashtestationRegistry is
 
     /**
      * @notice Checks if a TEE is already registered with the same quote
+     * @dev We use the quoteHash instead of the rawQuote to avoid unnecessary SLOADs
      * @dev If a user is trying to add the same address, and quote, this is a no-op
      * and we should revert to signal that the user may be making a mistake (why would
      * they be trying to add the same TEE twice?).
@@ -215,17 +217,18 @@ contract FlashtestationRegistry is
      * @dev We do not need to check the public key, because the address has a cryptographically-ensured
      * 1-to-1 relationship with the public key, so checking it would be redundant
      * @param teeAddress The TEE-controlled address of the TEE
-     * @param quote The hash of registration's raw quote
+     * @param newQuoteHash The hash of registration's new raw quote
      * @return Whether the TEE is already registered but is updating its quote
      */
-    function checkPreviousRegistration(address teeAddress, bytes memory quote) internal view returns (bool) {
-        if (keccak256(quote) == keccak256(registeredTEEs[teeAddress].rawQuote)) {
+    function checkPreviousRegistration(address teeAddress, bytes32 newQuoteHash) internal view returns (bool) {
+        bytes32 existingQuoteHash = registeredTEEs[teeAddress].quoteHash;
+        if (newQuoteHash == existingQuoteHash) {
             revert TEEServiceAlreadyRegistered(teeAddress);
         }
 
         // if the TEE is already registered, but we're using a different quote,
         // return true to signal that the TEE is already registered but is updating its quote
-        return registeredTEEs[teeAddress].rawQuote.length > 0;
+        return existingQuoteHash != 0;
     }
 
     /**
