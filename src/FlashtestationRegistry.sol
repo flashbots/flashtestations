@@ -257,7 +257,7 @@ contract FlashtestationRegistry is
      * in which a quote can be invalidated (tcbrecovery, certificate revocation etc). This would allow
      * much cheaper, bulk invalidation of all quotes using a now-outdated tcbinfo for example.
      */
-    function invalidateAttestation(address teeAddress) external payable {
+    function invalidateAttestation(address teeAddress) external payable nonReentrant {
         // check to make sure it even makes sense to invalidate the TEE-controlled address
         // if the TEE-controlled address is not registered with the FlashtestationRegistry,
         // it doesn't make sense to invalidate the attestation
