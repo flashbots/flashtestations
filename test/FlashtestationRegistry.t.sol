@@ -476,7 +476,7 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature
-        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0, block.timestamp);
         bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -487,7 +487,7 @@ contract FlashtestationRegistryTest is Test {
 
         // the caller here is unspecified (i.e. no vm.prank), so if it succeeds
         // it means any address can call this function (assuming they have the correct signature)
-        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, block.timestamp, signature);
 
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
             registry.getRegistration(expectedAddress);
@@ -505,7 +505,7 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature with wrong private key
-        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0, block.timestamp);
         bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalid_pk, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -513,7 +513,7 @@ contract FlashtestationRegistryTest is Test {
         // The function doesn't revert with InvalidSignature anymore, it reverts during
         // the registration process when checking caller vs teeAddress
         vm.expectRevert();
-        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, block.timestamp, signature);
     }
 
     function test_permitRegisterTEEService_reverts_with_invalid_nonce() public {
@@ -523,13 +523,29 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature
-        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 1); // wrong nonce
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 1, block.timestamp); // wrong nonce
         bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 0, 1));
-        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 1, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 1, block.timestamp, signature);
+    }
+
+    function test_permitRegisterTEEService_reverts_with_signature_past_deadline() public {
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
+
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
+
+        // Create the EIP-712 signature
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0, block.timestamp - 1);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.ExpiredSignature.selector, block.timestamp - 1));
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, block.timestamp - 1, signature);
     }
 
     function test_permitRegisterTEEService_reverts_with_replayed_signature() public {
@@ -539,16 +555,16 @@ contract FlashtestationRegistryTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         // Create the EIP-712 signature
-        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, 0, block.timestamp);
         bytes32 digest = registry.hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
         // First registration should succeed
-        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, block.timestamp, signature);
 
         // Try to replay the same signature
         vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 1, 0));
-        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, signature);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, block.timestamp, signature);
     }
 }

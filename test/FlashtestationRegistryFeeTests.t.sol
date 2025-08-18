@@ -109,7 +109,7 @@ contract FlashtestationRegistryFeeTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         uint256 nonce = registry.nonces(expectedAddress);
-        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce, block.timestamp);
         bytes32 digest = registry.hashTypedDataV4(structHash);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
@@ -120,7 +120,9 @@ contract FlashtestationRegistryFeeTest is Test {
         vm.expectEmit(address(registry));
         emit IFlashtestationRegistry.TEEServiceRegistered(expectedAddress, mockQuote, false);
 
-        registry.permitRegisterTEEService{value: TEST_FEE}(mockQuote, mock46f6.extData, nonce, signature);
+        registry.permitRegisterTEEService{value: TEST_FEE}(
+            mockQuote, mock46f6.extData, nonce, block.timestamp, signature
+        );
 
         // Verify registration succeeded
         (bool isValid, IFlashtestationRegistry.RegisteredTEE memory registration) =
@@ -186,7 +188,7 @@ contract FlashtestationRegistryFeeTest is Test {
         attestationContract.setQuoteResult(mockQuote, true, mockOutput);
 
         uint256 nonce = registry.nonces(expectedAddress);
-        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce);
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce, block.timestamp);
         bytes32 digest = registry.hashTypedDataV4(structHash);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
@@ -197,7 +199,9 @@ contract FlashtestationRegistryFeeTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(MockAutomataDcapAttestationFee.InsufficientFee.selector, TEST_FEE, TEST_FEE - 1)
         );
-        registry.permitRegisterTEEService{value: TEST_FEE - 1}(mockQuote, mock46f6.extData, nonce, signature);
+        registry.permitRegisterTEEService{value: TEST_FEE - 1}(
+            mockQuote, mock46f6.extData, nonce, block.timestamp, signature
+        );
     }
 
     function test_invalidateAttestation_insufficientFee() public {
