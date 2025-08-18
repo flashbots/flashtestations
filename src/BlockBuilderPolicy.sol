@@ -85,7 +85,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     error WorkloadNotInPolicy();
     error UnauthorizedBlockBuilder(address caller); // the teeAddress is not associated with a valid TEE workload
     error InvalidNonce(uint256 expected, uint256 provided);
-    error CommitHashLengthError(uint256 length);
+    error EmptyCommitHash();
+    error EmptySourceLocators();
 
     // ============ Events ============
 
@@ -276,7 +277,8 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         external
         onlyOwner
     {
-        require(bytes(commitHash).length > 0, CommitHashLengthError(bytes(commitHash).length));
+        require(bytes(commitHash).length > 0, EmptyCommitHash());
+        require(sourceLocators.length > 0, EmptySourceLocators());
 
         bytes32 workloadKey = WorkloadId.unwrap(workloadId);
 

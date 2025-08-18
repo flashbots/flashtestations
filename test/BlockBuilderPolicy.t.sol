@@ -188,6 +188,16 @@ contract BlockBuilderPolicyTest is Test {
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
     }
 
+    function test_addWorkloadToPolicy_reverts_if_empty_commit_hash() public {
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.EmptyCommitHash.selector, 0));
+        policy.addWorkloadToPolicy(mockf200.workloadId, "", mockf200.sourceLocators);
+    }
+
+    function test_addWorkloadToPolicy_reverts_if_empty_source_locators() public {
+        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.EmptySourceLocators.selector, 0));
+        policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, new string[](0));
+    }
+
     function test_addWorkloadToPolicy_reverts_if_not_owner() public {
         vm.prank(address(0x123));
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, address(0x123)));
