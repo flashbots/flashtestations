@@ -71,26 +71,18 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @notice Address of the FlashtestationRegistry contract that verifies TEE quotes
     address public registry;
 
-    /// @notice Array of supported flashtestation protocol versions
-    /// @dev Only v1 supported for now, but this will change with a contract upgrade
-    /// Note: we have to use a non-constant array because solidity only supports constant arrays
-    /// of value or bytes type. This means in future upgrades the upgrade logic will need to
-    /// account for adding new versions to the array
-    uint256[] public SUPPORTED_VERSIONS;
-
     /// @notice Tracks nonces for EIP-712 signatures to prevent replay attacks
     mapping(address => uint256) public nonces;
 
     /// @dev Storage gap to allow for future storage variable additions in upgrades
-    /// @dev This reserves 46 storage slots (out of 50 total - 4 used for approvedWorkloads, registry, SUPPORTED_VERSIONS and nonces)
-    uint256[46] __gap;
+    /// @dev This reserves 45 storage slots (out of 50 total - 4 used for approvedWorkloads, registry and nonces)
+    uint256[45] __gap;
 
     // ============ Errors ============
 
     error WorkloadAlreadyInPolicy();
     error WorkloadNotInPolicy();
     error UnauthorizedBlockBuilder(address caller); // the teeAddress is not associated with a valid TEE workload
-    error UnsupportedVersion(uint8 version); // see SUPPORTED_VERSIONS for supported versions
     error InvalidNonce(uint256 expected, uint256 provided);
     error CommitHashLengthError(uint256 length);
 
@@ -124,7 +116,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         __Ownable_init(_initialOwner);
         __EIP712_init("BlockBuilderPolicy", "1");
         registry = _registry;
-        SUPPORTED_VERSIONS.push(1);
         emit RegistrySet(_registry);
     }
 
@@ -185,8 +176,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
     /// and it is not needed to be called by other contracts
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
-        require(isSupportedVersion(version), UnsupportedVersion(version));
-
         // Check if the caller is an authorized TEE block builder for our Policy
         (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
         require(allowed, UnauthorizedBlockBuilder(teeAddress));
@@ -201,18 +190,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
 
         string memory commitHash = approvedWorkloads[WorkloadId.unwrap(workloadId)].commitHash;
         emit BlockBuilderProofVerified(teeAddress, workloadId, block.number, version, blockContentHash, commitHash);
-    }
-
-    /// @notice Helper function to check if a given version is supported by this Policy
-    /// @param version The version to check
-    /// @return True if the version is supported, false otherwise
-    function isSupportedVersion(uint8 version) public view returns (bool) {
-        for (uint256 i = 0; i < SUPPORTED_VERSIONS.length; ++i) {
-            if (SUPPORTED_VERSIONS[i] == version) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /// @notice Check if this TEE-controlled address has registered a valid TEE workload with the registry, and
