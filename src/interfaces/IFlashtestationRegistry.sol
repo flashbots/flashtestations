@@ -22,6 +22,7 @@ interface IFlashtestationRegistry {
     event TEEServiceInvalidated(address teeAddress);
 
     // Errors
+    error InvalidAttestationContract();
     error InvalidQuote(bytes output);
     error InvalidReportDataLength(uint256 length);
     error InvalidRegistrationDataHash(bytes32 expected, bytes32 received);
