@@ -247,7 +247,9 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @dev A careful reader will notice that this function does not delete stale cache entries. It overwrites them
     /// if the underlying TEE registration is still valid. But for stale cache entries in every other scenario, the
     /// cache entry persists indefinitely. This is because every other instance results in a return value of (false, 0)
-    /// to the caller (which is always the verifyBlockBuilderProof function) and it immediately reverts.
+    /// to the caller (which is always the verifyBlockBuilderProof function) and it immediately reverts. This is an unfortunate
+    /// consequence of our need to make this function as gas-efficient as possible, otherwise we would try to cleanup
+    /// stale cache entries
     /// @param teeAddress The TEE-controlled address
     /// @return True if the TEE is using an approved workload in the policy
     /// @return The workloadId of the TEE that is using an approved workload in the policy, or 0 if
@@ -263,10 +265,10 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
         CachedWorkload memory cached = cachedWorkloads[teeAddress];
 
         // Check if we've already fetched and computed the workloadId for this TEE
-        bytes32 workloadId = WorkloadId.unwrap(cached.workloadId);
-        if (workloadId != 0 && cached.quoteHash == quoteHash) {
+        bytes32 cachedWorkloadId = WorkloadId.unwrap(cached.workloadId);
+        if (cachedWorkloadId != 0 && cached.quoteHash == quoteHash) {
             // Cache hit - verify the workload is still a part of this policy's approved workloads
-            if (bytes(approvedWorkloads[workloadId].commitHash).length > 0) {
+            if (bytes(approvedWorkloads[cachedWorkloadId].commitHash).length > 0) {
                 return (true, cached.workloadId);
             } else {
                 // The workload is no longer approved, so the policy is no longer valid for this TEE\
