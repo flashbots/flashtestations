@@ -20,6 +20,7 @@ interface IFlashtestationRegistry {
     // Events
     event TEEServiceRegistered(address teeAddress, bytes rawQuote, bool alreadyExists);
     event TEEServiceInvalidated(address teeAddress);
+    event PreviousSignatureInvalidated(address teeAddress, uint256 invalidatedNonce);
 
     // Errors
     error InvalidAttestationContract();
