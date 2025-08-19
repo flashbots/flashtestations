@@ -27,6 +27,8 @@ contract FlashtestationRegistry is
 {
     using ECDSA for bytes32;
 
+    // ============ Constants ============
+
     /// @notice Minimum length of the td reportdata field: tee address (20 bytes) and hash of extendedRegistrationData(32 bytes)
     /// @dev This is the minimum length of the td reportdata field, which is required by the TDX specification
     /// @dev The remaining 12 bytes of the 64 byte reportdata field is left unused, it does not matter what is put there
@@ -40,7 +42,7 @@ contract FlashtestationRegistry is
     bytes32 public constant REGISTER_TYPEHASH =
         keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistrationData,uint256 nonce,uint256 deadline)");
 
-    // Storage Variables
+    // ============ Storage Variables ============
 
     /// @notice The address of the Automata DCAP Attestation contract, which verifies TEE quotes
     /// @dev This is deployed by Automata and set during initialization
@@ -60,7 +62,8 @@ contract FlashtestationRegistry is
 
     /**
      * Initializer to set the Automata DCAP Attestation contract, which verifies TEE quotes
-     * @param _attestationContract The address of the attestation contract
+     * @param owner The address of the initial owner of the contract, who is able to upgrade the contract
+     * @param _attestationContract The address of the Automata DCAP attestation contract, used to verify TEE quotes
      */
     function initialize(address owner, address _attestationContract) external initializer {
         __Ownable_init(owner);
@@ -82,6 +85,7 @@ contract FlashtestationRegistry is
     /**
      * @dev Modifier to check if input bytes size is within limits
      * to protect against DoS attacks
+     * @param data The bytes to check the size of
      */
     modifier limitBytesSize(bytes memory data) {
         require(data.length <= MAX_BYTES_SIZE, ByteSizeExceeded(data.length));
@@ -233,12 +237,12 @@ contract FlashtestationRegistry is
 
     /**
      * @notice Fetches TEE registration for a given address
-     * @param teeAddress The TEE-controlled address to check
-     * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
-     * @return registeredTEE The RegisteredTEE struct containing raw quote, parsed report body, and extended data
      * @dev getRegistration will only return true if a valid TEE quote containing
      * teeAddress in its reportData field was previously registered with the FlashtestationRegistry
      * using the registerTEEService function.
+     * @param teeAddress The TEE-controlled address to check
+     * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
+     * @return registeredTEE The RegisteredTEE struct containing raw quote, parsed report body, and extended data
      */
     function getRegistration(address teeAddress) public view returns (bool, RegisteredTEE memory) {
         return (registeredTEEs[teeAddress].isValid, registeredTEEs[teeAddress]);
@@ -246,11 +250,11 @@ contract FlashtestationRegistry is
 
     /**
      * @notice Fetches only the validity status and quote hash for a given TEE address
+     * @dev This is a gas-optimized version of getRegistration that only returns the minimal data
+     * needed for caching optimizations in policy contracts
      * @param teeAddress The TEE-controlled address to check
      * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
      * @return quoteHash The keccak256 hash of the raw quote
-     * @dev This is a gas-optimized version of getRegistration that only returns the minimal data
-     * needed for caching optimizations in policy contracts
      */
     function getRegistrationStatus(address teeAddress) external view returns (bool isValid, bytes32 quoteHash) {
         RegisteredTEE storage tee = registeredTEEs[teeAddress];
@@ -259,7 +263,6 @@ contract FlashtestationRegistry is
 
     /**
      * @notice Invalidates the attestation of a TEE
-     * @param teeAddress The TEE-controlled address to invalidate
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
      * @dev Will always revert except if the attestation is valid and the attestation re-verification
      * fails. This is to prevent a user needlessly calling this function and for a no-op to occur
@@ -274,9 +277,7 @@ contract FlashtestationRegistry is
      * a malicious TEE that has been compromised
      * @dev Note: this function is callable by anyone, so that offchain monitoring services can
      * quickly mark TEEs as invalid
-     * @dev Note: rather than relying on invalidation of specific quotes, we can cover all the cases
-     * in which a quote can be invalidated (tcbrecovery, certificate revocation etc). This would allow
-     * much cheaper, bulk invalidation of all quotes using a now-outdated tcbinfo for example.
+     * @param teeAddress The TEE-controlled address to invalidate
      */
     function invalidateAttestation(address teeAddress) external payable nonReentrant {
         // check to make sure it even makes sense to invalidate the TEE-controlled address
