@@ -8,12 +8,12 @@ import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/crypt
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 
-// WorkloadID uniquely identifies a TEE workload. A workload is roughly equivalent to a version of an application's
-// code, can be reproduced from source code, and is derived from a combination of the TEE's measurement registers.
-// The TDX platform provides several registers that capture cryptographic hashes of code, data, and configuration
-// loaded into the TEE's environment. This means that whenever a TEE device changes anything about its compute stack
-// (e.g. user code, firmware, OS, etc), the workloadID will change.
-// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
+/// @notice WorkloadID uniquely identifies a TEE workload. A workload is roughly equivalent to a version of an application's
+/// code, can be reproduced from source code, and is derived from a combination of the TEE's measurement registers.
+/// The TDX platform provides several registers that capture cryptographic hashes of code, data, and configuration
+/// loaded into the TEE's environment. This means that whenever a TEE device changes anything about its compute stack
+/// (e.g. user code, firmware, OS, etc), the workloadID will change.
+/// See the [Flashtestation's specification](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md#workload-identity-derivation) for more details
 type WorkloadId is bytes32;
 
 /**
@@ -52,7 +52,9 @@ struct CachedWorkload {
 contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradeable {
     using ECDSA for bytes32;
 
-    // EIP-712 Constants
+    // ============ EIP-712 Constants ============
+
+    /// @notice EIP-712 Typehash, used in the permitVerifyBlockBuilderProof function
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
 
@@ -72,7 +74,7 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// @notice Enabled Key Locker (KL)
     bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
 
-    // Storage Variables
+    // ============ Storage Variables ============
 
     /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
     /// @dev This is only updateable by governance (i.e. the owner) of the Policy contract
@@ -92,7 +94,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     mapping(address => CachedWorkload) private cachedWorkloads;
 
     /// @dev Storage gap to allow for future storage variable additions in upgrades
-
     /// @dev This reserves 46 storage slots (out of 50 total - 4 used for approvedWorkloads, registry, nonces, and cachedWorkloads)
     uint256[46] __gap;
 
@@ -160,16 +161,16 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     }
 
     /// @notice Verify a block builder proof with a Flashtestation Transaction using EIP-712 signatures
-    /// @param version The version of the flashtestation's protocol used to generate the block builder proof
-    /// @param blockContentHash The hash of the block content
-    /// @param nonce The nonce to use for the EIP-712 signature
-    /// @param eip712Sig The EIP-712 signature of the verification message
     /// @notice This function allows any EOA to submit a block builder proof on behalf of a TEE
     /// @notice The TEE must sign a proper EIP-712-formatted message, and the signer must match a TEE-controlled address
     /// whose associated workload is approved under this policy
     /// @dev This function is useful if you do not want to deal with the operational difficulties of keeping your
     /// TEE-controlled addresses funded, but note that because of the larger number of function arguments, will cost
     /// more gas than the non-EIP-712 verifyBlockBuilderProof function
+    /// @param version The version of the flashtestation's protocol used to generate the block builder proof
+    /// @param blockContentHash The hash of the block content
+    /// @param nonce The nonce to use for the EIP-712 signature
+    /// @param eip712Sig The EIP-712 signature of the verification message
     function permitVerifyBlockBuilderProof(
         uint8 version,
         bytes32 blockContentHash,
@@ -192,11 +193,11 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     }
 
     /// @notice Internal function to verify a block builder proof
+    /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
+    /// and it is not needed to be called by other contracts
     /// @param teeAddress The TEE-controlled address
     /// @param version The version of the flashtestation's protocol
     /// @param blockContentHash The hash of the block content
-    /// @dev This function is internal because it is only used by the permitVerifyBlockBuilderProof function
-    /// and it is not needed to be called by other contracts
     function _verifyBlockBuilderProof(address teeAddress, uint8 version, bytes32 blockContentHash) internal {
         // Check if the caller is an authorized TEE block builder for our Policy and update cache
         (bool allowed, WorkloadId workloadId) = _cachedIsAllowedPolicy(teeAddress);
@@ -321,10 +322,6 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     }
 
     /// @notice Add a workload to a policy (governance only)
-    /// @param workloadId The workload identifier
-    /// @param commitHash The 40-character hexadecimal commit hash of the git repository
-    /// whose source code is used to build the TEE image identified by the workloadId
-    /// @param sourceLocators An array of URIs pointing to the source code
     /// @notice Only the owner of this contract can add workloads to the policy
     /// and it is the responsibility of the owner to ensure that the workload is valid
     /// otherwise the address associated with this workload has full power to do anything
@@ -341,6 +338,10 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     /// this can be used to prove that the owner acted maliciously. In the honest case, this Policy serves as a
     /// source of truth for which source code of build software (i.e. the commit hash) is used to build the TEE image
     /// identified by the workloadId.
+    /// @param workloadId The workload identifier
+    /// @param commitHash The 40-character hexadecimal commit hash of the git repository
+    /// whose source code is used to build the TEE image identified by the workloadId
+    /// @param sourceLocators An array of URIs pointing to the source code
     function addWorkloadToPolicy(WorkloadId workloadId, string calldata commitHash, string[] calldata sourceLocators)
         external
         onlyOwner
