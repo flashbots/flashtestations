@@ -5,7 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {BlockBuilderPolicy, WorkloadId, WorkloadMetadata} from "../src/BlockBuilderPolicy.sol";
+import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
+import {IBlockBuilderPolicy, WorkloadId} from "../src/interfaces/IBlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
 import {MockQuote} from "../test/FlashtestationRegistry.t.sol";
@@ -144,7 +145,7 @@ contract BlockBuilderPolicyTest is Test {
         registry = FlashtestationRegistry(registryProxy);
         address policyImplementation = address(new BlockBuilderPolicy());
 
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidRegistry.selector));
+        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.InvalidRegistry.selector));
         UnsafeUpgrades.deployUUPSProxy(
             policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(0)))
         );
@@ -154,7 +155,7 @@ contract BlockBuilderPolicyTest is Test {
         // Add a workload
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
 
-        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        IBlockBuilderPolicy.WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
         assertEq(workload.commitHash, mockf200.commitHash);
         assertEq(workload.sourceLocators.length, 2);
         assertEq(workload.sourceLocators[0], mockf200.sourceLocators[0]);
@@ -169,7 +170,7 @@ contract BlockBuilderPolicyTest is Test {
             mockf200WithDifferentWorkloadId.sourceLocators
         );
 
-        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        IBlockBuilderPolicy.WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
         assertEq(workload.commitHash, mockf200.commitHash);
         assertEq(workload.sourceLocators.length, 2);
         assertEq(workload.sourceLocators[0], mockf200.sourceLocators[0]);
@@ -184,17 +185,17 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_addWorkloadToPolicy_reverts_if_duplicate() public {
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
-        vm.expectRevert(BlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
+        vm.expectRevert(IBlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_empty_commit_hash() public {
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.EmptyCommitHash.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.EmptyCommitHash.selector, 0));
         policy.addWorkloadToPolicy(mockf200.workloadId, "", mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_empty_source_locators() public {
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.EmptySourceLocators.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.EmptySourceLocators.selector, 0));
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, new string[](0));
     }
 
@@ -207,7 +208,7 @@ contract BlockBuilderPolicyTest is Test {
     function test_removeWorkloadFromPolicy() public {
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
-        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
+        IBlockBuilderPolicy.WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200.workloadId);
         assertEq(workload.commitHash, "");
         assertEq(workload.sourceLocators.length, 0);
     }
@@ -220,7 +221,8 @@ contract BlockBuilderPolicyTest is Test {
             mockf200WithDifferentWorkloadId.sourceLocators
         );
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
-        WorkloadMetadata memory workload = policy.getWorkloadMetadata(mockf200WithDifferentWorkloadId.workloadId);
+        IBlockBuilderPolicy.WorkloadMetadata memory workload =
+            policy.getWorkloadMetadata(mockf200WithDifferentWorkloadId.workloadId);
         assertEq(workload.commitHash, mockf200WithDifferentWorkloadId.commitHash);
         assertEq(workload.sourceLocators.length, 2);
         assertEq(workload.sourceLocators[0], mockf200WithDifferentWorkloadId.sourceLocators[0]);
@@ -256,7 +258,7 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_removeWorkloadFromPolicy_reverts_if_not_present() public {
-        vm.expectRevert(BlockBuilderPolicy.WorkloadNotInPolicy.selector);
+        vm.expectRevert(IBlockBuilderPolicy.WorkloadNotInPolicy.selector);
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
     }
 
@@ -446,7 +448,7 @@ contract BlockBuilderPolicyTest is Test {
 
         vm.prank(mockf200.teeAddress);
         vm.expectRevert(
-            abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, mockf200.teeAddress)
+            abi.encodeWithSelector(IBlockBuilderPolicy.UnauthorizedBlockBuilder.selector, mockf200.teeAddress)
         );
         policy.verifyBlockBuilderProof(1, bytes32(0));
     }
@@ -461,8 +463,13 @@ contract BlockBuilderPolicyTest is Test {
 
         bytes32 blockContentHash = bytes32(hex"1234");
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            mockf200.teeAddress, actualWorkloadId, block.number, 1, blockContentHash, mockf200.commitHash
+        emit IBlockBuilderPolicy.BlockBuilderProofVerified(
+            mockf200.teeAddress,
+            WorkloadId.unwrap(actualWorkloadId),
+            block.number,
+            1,
+            blockContentHash,
+            mockf200.commitHash
         );
 
         vm.prank(mockf200.teeAddress);
@@ -509,8 +516,13 @@ contract BlockBuilderPolicyTest is Test {
 
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress, actualWorkloadId, block.number, version, blockContentHash, mock46f6.commitHash
+        emit IBlockBuilderPolicy.BlockBuilderProofVerified(
+            teeAddress,
+            WorkloadId.unwrap(actualWorkloadId),
+            block.number,
+            version,
+            blockContentHash,
+            mock46f6.commitHash
         );
 
         // Call the function
@@ -540,8 +552,13 @@ contract BlockBuilderPolicyTest is Test {
 
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress, actualWorkloadId, block.number, version, blockContentHash, mock46f6.commitHash
+        emit IBlockBuilderPolicy.BlockBuilderProofVerified(
+            teeAddress,
+            WorkloadId.unwrap(actualWorkloadId),
+            block.number,
+            version,
+            blockContentHash,
+            mock46f6.commitHash
         );
 
         // Call the function
@@ -559,8 +576,13 @@ contract BlockBuilderPolicyTest is Test {
 
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
-        emit BlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress, actualWorkloadId, block.number, version, blockContentHash, mock46f6.commitHash
+        emit IBlockBuilderPolicy.BlockBuilderProofVerified(
+            teeAddress,
+            WorkloadId.unwrap(actualWorkloadId),
+            block.number,
+            version,
+            blockContentHash,
+            mock46f6.commitHash
         );
 
         // Call the function
@@ -581,7 +603,7 @@ contract BlockBuilderPolicyTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(invalid_pk, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.UnauthorizedBlockBuilder.selector, invalid_signer));
+        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.UnauthorizedBlockBuilder.selector, invalid_signer));
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
     }
 
@@ -594,7 +616,7 @@ contract BlockBuilderPolicyTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidNonce.selector, 0, 1));
+        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.InvalidNonce.selector, 0, 1));
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 1, signature);
     }
 
@@ -619,7 +641,7 @@ contract BlockBuilderPolicyTest is Test {
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
 
         // Try to replay the same signature
-        vm.expectRevert(abi.encodeWithSelector(BlockBuilderPolicy.InvalidNonce.selector, 1, 0));
+        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.InvalidNonce.selector, 1, 0));
         policy.permitVerifyBlockBuilderProof(version, blockContentHash, 0, signature);
     }
 }
