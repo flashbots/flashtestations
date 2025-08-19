@@ -567,4 +567,73 @@ contract FlashtestationRegistryTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 1, 0));
         registry.permitRegisterTEEService(mockQuote, mock46f6.extData, 0, block.timestamp, signature);
     }
+
+    function test_invalidatePreviousSignature_reverts_if_nonce_does_not_match() public {
+        vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 0, 1));
+        registry.invalidatePreviousSignature(1);
+    }
+
+    function test_invalidatePreviousSignature_reverts_for_nonzero_nonce() public {
+        // first register a valid TEE
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
+
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
+
+        // Create the EIP-712 signature
+        uint256 nonce = 0;
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce, block.timestamp);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Register the TEE, which consumes nonce == 0
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, nonce, block.timestamp, signature);
+
+        // now invalidate the nonce == 1, and make sure it is indeed invalidated
+
+        vm.prank(mock46f6.teeAddress);
+        registry.invalidatePreviousSignature(nonce + 1);
+
+        // try and fail to use the invalidated nonce + 1;
+        structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce + 1, block.timestamp);
+        digest = registry.hashTypedDataV4(structHash);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(mock46f6.privateKey, digest);
+        bytes memory signature2 = abi.encodePacked(r2, s2, v2);
+
+        vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 2, nonce + 1));
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, nonce + 1, block.timestamp, signature2);
+    }
+
+    function test_invalidatePreviousSignature_increments_nonce() public {
+        // Prepare a valid permit signature with nonce 0
+        bytes memory mockOutput = mock46f6.output;
+        bytes memory mockQuote = mock46f6.quote;
+
+        attestationContract.setQuoteResult(mockQuote, true, mockOutput);
+
+        uint256 nonce = 0;
+        uint256 deadline = block.timestamp + 1000;
+        bytes32 structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce, deadline);
+        bytes32 digest = registry.hashTypedDataV4(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(mock46f6.privateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Invalidate the current nonce (0)
+        vm.expectEmit(address(registry));
+        emit IFlashtestationRegistry.PreviousSignatureInvalidated(mock46f6.teeAddress, 0);
+        vm.prank(mock46f6.teeAddress);
+        registry.invalidatePreviousSignature(nonce);
+
+        // Now, a permit with nonce 0 should revert with InvalidNonce(1, 0)
+        vm.expectRevert(abi.encodeWithSelector(IFlashtestationRegistry.InvalidNonce.selector, 1, 0));
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, nonce, deadline, signature);
+
+        // and finally, make sure that we can use the newest nonce
+        structHash = registry.computeStructHash(mockQuote, mock46f6.extData, nonce + 1, deadline);
+        digest = registry.hashTypedDataV4(structHash);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(mock46f6.privateKey, digest);
+        bytes memory signature2 = abi.encodePacked(r2, s2, v2);
+        registry.permitRegisterTEEService(mockQuote, mock46f6.extData, nonce + 1, deadline, signature2);
+    }
 }

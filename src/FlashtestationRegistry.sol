@@ -291,6 +291,22 @@ contract FlashtestationRegistry is
     }
 
     /**
+     * @notice Allows a user to increment their EIP-712 signature nonce, invalidating any previously signed but unexecuted permit signatures.
+     * @dev This function provides a way for users to proactively invalidate old signatures by incrementing their nonce,
+     * without needing to execute a valid permit.
+     * This is particularly useful if a user suspects a signature may have been compromised or simply wants to ensure
+     * that any outstanding, unused signatures with the current nonce can no longer be executed.
+     * @dev The function requires the provided nonce to match the user's current nonce, as a defense against the caller
+     * mistakenly invalidating a nonce that they did not intend to invalidate
+     * @param _nonce The expected current nonce for the caller; must match the stored nonce
+     */
+    function invalidatePreviousSignature(uint256 _nonce) external {
+        require(_nonce == nonces[msg.sender], InvalidNonce(nonces[msg.sender], _nonce));
+        nonces[msg.sender]++;
+        emit PreviousSignatureInvalidated(msg.sender, _nonce);
+    }
+
+    /**
      * @notice Computes the digest for the EIP-712 signature
      * @dev This is useful for when both onchain and offchain users want to compute the digest
      * for the EIP-712 signature, and then use it to verify the signature
