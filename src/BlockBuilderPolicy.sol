@@ -395,4 +395,14 @@ contract BlockBuilderPolicy is Initializable, UUPSUpgradeable, OwnableUpgradeabl
     function computeStructHash(uint8 version, bytes32 blockContentHash, uint256 nonce) public pure returns (bytes32) {
         return keccak256(abi.encode(VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH, version, blockContentHash, nonce));
     }
+
+    /**
+     * @notice Returns the domain separator for the EIP-712 signature
+     * @dev This is useful for when both onchain and offchain users want to compute the domain separator
+     * for the EIP-712 signature, and then use it to verify the signature
+     * @return The domain separator for the EIP-712 signature
+     */
+    function domainSeparator() external view returns (bytes32) {
+        return _domainSeparatorV4();
+    }
 }
