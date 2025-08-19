@@ -189,7 +189,8 @@ contract FlashtestationRegistry is
             revert InvalidRegistrationDataHash(extendedDataReportHash, extendedRegistrationDataHash);
         }
 
-        bool previouslyRegistered = checkPreviousRegistration(teeAddress, rawQuote);
+        bytes32 newQuoteHash = keccak256(rawQuote);
+        bool previouslyRegistered = checkPreviousRegistration(teeAddress, newQuoteHash);
 
         // Register the address in the registry with the raw quote so later on if the TEE has its
         // underlying DCAP endorsements updated, we can invalidate the TEE's attestation
@@ -197,7 +198,8 @@ contract FlashtestationRegistry is
             rawQuote: rawQuote,
             parsedReportBody: td10ReportBody,
             extendedRegistrationData: extendedRegistrationData,
-            isValid: true
+            isValid: true,
+            quoteHash: newQuoteHash
         });
 
         emit TEEServiceRegistered(teeAddress, rawQuote, previouslyRegistered);
@@ -205,6 +207,7 @@ contract FlashtestationRegistry is
 
     /**
      * @notice Checks if a TEE is already registered with the same quote
+     * @dev We use the quoteHash instead of the rawQuote to avoid unnecessary SLOADs
      * @dev If a user is trying to add the same address, and quote, this is a no-op
      * and we should revert to signal that the user may be making a mistake (why would
      * they be trying to add the same TEE twice?).
@@ -214,17 +217,18 @@ contract FlashtestationRegistry is
      * @dev We do not need to check the public key, because the address has a cryptographically-ensured
      * 1-to-1 relationship with the public key, so checking it would be redundant
      * @param teeAddress The TEE-controlled address of the TEE
-     * @param quote The hash of registration's raw quote
+     * @param newQuoteHash The hash of registration's new raw quote
      * @return Whether the TEE is already registered but is updating its quote
      */
-    function checkPreviousRegistration(address teeAddress, bytes memory quote) internal view returns (bool) {
-        if (keccak256(quote) == keccak256(registeredTEEs[teeAddress].rawQuote)) {
+    function checkPreviousRegistration(address teeAddress, bytes32 newQuoteHash) internal view returns (bool) {
+        bytes32 existingQuoteHash = registeredTEEs[teeAddress].quoteHash;
+        if (newQuoteHash == existingQuoteHash) {
             revert TEEServiceAlreadyRegistered(teeAddress);
         }
 
         // if the TEE is already registered, but we're using a different quote,
         // return true to signal that the TEE is already registered but is updating its quote
-        return registeredTEEs[teeAddress].rawQuote.length > 0;
+        return existingQuoteHash != 0;
     }
 
     /**
@@ -238,6 +242,19 @@ contract FlashtestationRegistry is
      */
     function getRegistration(address teeAddress) public view returns (bool, RegisteredTEE memory) {
         return (registeredTEEs[teeAddress].isValid, registeredTEEs[teeAddress]);
+    }
+
+    /**
+     * @notice Fetches only the validity status and quote hash for a given TEE address
+     * @param teeAddress The TEE-controlled address to check
+     * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
+     * @return quoteHash The keccak256 hash of the raw quote
+     * @dev This is a gas-optimized version of getRegistration that only returns the minimal data
+     * needed for caching optimizations in policy contracts
+     */
+    function getRegistrationStatus(address teeAddress) external view returns (bool isValid, bytes32 quoteHash) {
+        RegisteredTEE storage tee = registeredTEEs[teeAddress];
+        return (tee.isValid, tee.quoteHash);
     }
 
     /**
