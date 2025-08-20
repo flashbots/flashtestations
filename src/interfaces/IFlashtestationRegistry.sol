@@ -50,8 +50,8 @@ interface IFlashtestationRegistry {
     error ByteSizeExceeded(uint256 size);
     /// @notice Emitted when the TEE service is already registered when registering
     error TEEServiceAlreadyRegistered(address teeAddress);
-    /// @notice Emitted when the sender must match the TEE address
-    error SenderMustMatchTEEAddress(address sender, address teeAddress);
+    /// @notice Emitted when the signer doesn't match the TEE address
+    error SignerMustMatchTEEAddress(address signer, address teeAddress);
     /// @notice Emitted when the TEE service is not registered
     error TEEServiceNotRegistered(address teeAddress);
     /// @notice Emitted when the TEE service is already invalid when trying to invalidate a TEE registration
