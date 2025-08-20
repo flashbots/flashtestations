@@ -131,11 +131,11 @@ contract FlashtestationRegistry is
      * @notice Verifies + Registers a TEE workload with a specific TEE-controlled address in the FlashtestationRegistry
      * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
      * @dev This is a costly operation (5 million gas) and should be used sparingly.
-     * @param caller The address from which registration request originates, must match the one in the quote
+     * @param signer The address from which registration request originates, must match the one in the quote
      * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
      * @param extendedRegistrationData Abi-encoded application specific attested data
      */
-    function doRegister(address caller, bytes calldata rawQuote, bytes calldata extendedRegistrationData)
+    function doRegister(address signer, bytes calldata rawQuote, bytes calldata extendedRegistrationData)
         internal
         limitBytesSize(rawQuote)
         limitBytesSize(extendedRegistrationData)
@@ -158,8 +158,8 @@ contract FlashtestationRegistry is
 
         // Ensure that the caller is the TEE-controlled address, otherwise we have no guarantees that
         // the TEE-controlled address is the one that is registering the TEE
-        if (caller != teeAddress) {
-            revert SenderMustMatchTEEAddress(caller, teeAddress);
+        if (signer != teeAddress) {
+            revert SignerMustMatchTEEAddress(signer, teeAddress);
         }
 
         // Verify that the extended registration data matches the hash in the TDX report data

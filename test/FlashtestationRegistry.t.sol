@@ -216,7 +216,7 @@ contract FlashtestationRegistryTest is Test {
         vm.prank(differentAddress);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IFlashtestationRegistry.SenderMustMatchTEEAddress.selector, differentAddress, expectedAddress
+                IFlashtestationRegistry.SignerMustMatchTEEAddress.selector, differentAddress, expectedAddress
             )
         );
         registry.registerTEEService(mockQuote, mockf200.extData);
