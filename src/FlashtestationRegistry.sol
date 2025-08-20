@@ -51,10 +51,10 @@ contract FlashtestationRegistry is
      * @notice Returns the registered TEE for a given address
      * @dev This is used to get the registered TEE for a given address
      */
-    mapping(address => RegisteredTEE) public registeredTEEs;
+    mapping(address teeAddress => RegisteredTEE) public registeredTEEs;
 
     /// @inheritdoc IFlashtestationRegistry
-    mapping(address => uint256) public override nonces;
+    mapping(address teeAddress => uint256 permitNonce) public override nonces;
 
     /// @dev Storage gap to allow for future storage variable additions in upgrades
     /// @dev This reserves 47 storage slots (out of 50 total - 3 used for attestationContract, registeredTEEs and nonces)
