@@ -148,7 +148,7 @@ contract BlockBuilderPolicy is
 
         bytes32 workloadKey = WorkloadId.unwrap(workloadId);
         string memory commitHash = approvedWorkloads[workloadKey].commitHash;
-        emit BlockBuilderProofVerified(teeAddress, workloadKey, block.number, version, blockContentHash, commitHash);
+        emit BlockBuilderProofVerified(teeAddress, workloadKey, version, blockContentHash, commitHash);
     }
 
     /// @inheritdoc IBlockBuilderPolicy
