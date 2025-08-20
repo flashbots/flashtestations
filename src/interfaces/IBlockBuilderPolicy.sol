@@ -78,7 +78,7 @@ interface IBlockBuilderPolicy {
     /// @notice This function will only succeed if the caller is a registered TEE-controlled address from an attested TEE
     /// and the TEE is running an approved block builder workload (see `addWorkloadToPolicy`)
     /// @notice The blockContentHash is a keccak256 hash of a subset of the block header, as specified by the version.
-    /// See the [flashtestations spec](https://github.com/flashbots/rollup-boost/blob/77fc19f785eeeb9b4eb5fb08463bc556dec2c837/specs/flashtestations.md) for more details
+    /// See the [flashtestations spec](https://github.com/flashbots/rollup-boost/blob/main/specs/flashtestations.md) for more details
     /// @dev If you do not want to deal with the operational difficulties of keeping your TEE-controlled
     /// addresses funded, you can use the permitVerifyBlockBuilderProof function instead which costs
     /// more gas, but allows any EOA to submit a block builder proof on behalf of a TEE
