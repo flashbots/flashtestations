@@ -41,17 +41,11 @@ interface IBlockBuilderPolicy {
     /// @notice Emitted when a block builder proof is successfully verified
     /// @param caller The address that called the verification function (TEE address)
     /// @param workloadId The workload identifier of the TEE
-    /// @param blockNumber The block number when the verification occurred
     /// @param version The flashtestation protocol version used
     /// @param blockContentHash The hash of the block content
     /// @param commitHash The git commit hash associated with the workload
     event BlockBuilderProofVerified(
-        address caller,
-        bytes32 workloadId,
-        uint256 blockNumber,
-        uint8 version,
-        bytes32 blockContentHash,
-        string commitHash
+        address caller, bytes32 workloadId, uint8 version, bytes32 blockContentHash, string commitHash
     );
 
     // ============ Errors ============

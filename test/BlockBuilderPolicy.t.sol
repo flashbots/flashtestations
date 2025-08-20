@@ -464,12 +464,7 @@ contract BlockBuilderPolicyTest is Test {
         bytes32 blockContentHash = bytes32(hex"1234");
         vm.expectEmit(address(policy));
         emit IBlockBuilderPolicy.BlockBuilderProofVerified(
-            mockf200.teeAddress,
-            WorkloadId.unwrap(actualWorkloadId),
-            block.number,
-            1,
-            blockContentHash,
-            mockf200.commitHash
+            mockf200.teeAddress, WorkloadId.unwrap(actualWorkloadId), 1, blockContentHash, mockf200.commitHash
         );
 
         vm.prank(mockf200.teeAddress);
@@ -517,12 +512,7 @@ contract BlockBuilderPolicyTest is Test {
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
         emit IBlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress,
-            WorkloadId.unwrap(actualWorkloadId),
-            block.number,
-            version,
-            blockContentHash,
-            mock46f6.commitHash
+            teeAddress, WorkloadId.unwrap(actualWorkloadId), version, blockContentHash, mock46f6.commitHash
         );
 
         // Call the function
@@ -553,12 +543,7 @@ contract BlockBuilderPolicyTest is Test {
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
         emit IBlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress,
-            WorkloadId.unwrap(actualWorkloadId),
-            block.number,
-            version,
-            blockContentHash,
-            mock46f6.commitHash
+            teeAddress, WorkloadId.unwrap(actualWorkloadId), version, blockContentHash, mock46f6.commitHash
         );
 
         // Call the function
@@ -577,12 +562,7 @@ contract BlockBuilderPolicyTest is Test {
         // Expect the event to be emitted
         vm.expectEmit(address(policy));
         emit IBlockBuilderPolicy.BlockBuilderProofVerified(
-            teeAddress,
-            WorkloadId.unwrap(actualWorkloadId),
-            block.number,
-            version,
-            blockContentHash,
-            mock46f6.commitHash
+            teeAddress, WorkloadId.unwrap(actualWorkloadId), version, blockContentHash, mock46f6.commitHash
         );
 
         // Call the function
