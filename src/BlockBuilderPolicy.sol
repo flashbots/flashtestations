@@ -70,17 +70,17 @@ contract BlockBuilderPolicy is
     /// Adding and removing a workload is O(1).
     /// This means the critical `_cachedIsAllowedPolicy` function is O(1) since we can directly check if a workloadId exists
     /// in the mapping
-    mapping(bytes32 => WorkloadMetadata) private approvedWorkloads;
+    mapping(bytes32 workloadId => WorkloadMetadata) private approvedWorkloads;
 
     /// @inheritdoc IBlockBuilderPolicy
     address public registry;
 
     /// @inheritdoc IBlockBuilderPolicy
-    mapping(address => uint256) public nonces;
+    mapping(address teeAddress => uint256 permitNonce) public nonces;
 
     /// @notice Cache of computed workloadIds to avoid expensive recomputation
     /// @dev Maps teeAddress to cached workload information for gas optimization
-    mapping(address => CachedWorkload) private cachedWorkloads;
+    mapping(address teeAddress => CachedWorkload) private cachedWorkloads;
 
     /// @dev Storage gap to allow for future storage variable additions in upgrades
     /// @dev This reserves 46 storage slots (out of 50 total - 4 used for approvedWorkloads, registry, nonces, and cachedWorkloads)
