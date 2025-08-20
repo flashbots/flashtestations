@@ -5,7 +5,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {ReentrancyGuardTransientUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IAttestation} from "./interfaces/IAttestation.sol";
 import {IFlashtestationRegistry} from "./interfaces/IFlashtestationRegistry.sol";
@@ -23,7 +24,7 @@ contract FlashtestationRegistry is
     UUPSUpgradeable,
     OwnableUpgradeable,
     EIP712Upgradeable,
-    ReentrancyGuardTransient
+    ReentrancyGuardTransientUpgradeable
 {
     using ECDSA for bytes32;
 
@@ -64,6 +65,7 @@ contract FlashtestationRegistry is
     function initialize(address owner, address _attestationContract) external override initializer {
         __Ownable_init(owner);
         __EIP712_init("FlashtestationRegistry", "1");
+        __ReentrancyGuardTransient_init();
         require(_attestationContract != address(0), InvalidAttestationContract());
         attestationContract = IAttestation(_attestationContract);
     }
