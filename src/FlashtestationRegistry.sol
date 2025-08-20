@@ -39,33 +39,29 @@ contract FlashtestationRegistry is
     uint256 public constant MAX_BYTES_SIZE = 20 * 1024;
 
     /// @notice EIP-712 Typehash, used in the permitRegisterTEEService function
-    bytes32 public constant REGISTER_TYPEHASH =
+    bytes32 public constant override REGISTER_TYPEHASH =
         keccak256("RegisterTEEService(bytes rawQuote,bytes extendedRegistrationData,uint256 nonce,uint256 deadline)");
 
     // ============ Storage Variables ============
 
-    /// @notice The address of the Automata DCAP Attestation contract, which verifies TEE quotes
-    /// @dev This is deployed by Automata and set during initialization
-    IAttestation public attestationContract;
+    /// @inheritdoc IFlashtestationRegistry
+    IAttestation public override attestationContract;
 
-    /// @notice Tracks the TEE-controlled address that registered a particular attestation quote and app data.
-    /// @dev This enables efficient O(1) lookup in `getRegistration`, so that apps can quickly verify the
-    /// output of a TEE workload
+    /**
+     * @notice Returns the registered TEE for a given address
+     * @dev This is used to get the registered TEE for a given address
+     */
     mapping(address => RegisteredTEE) public registeredTEEs;
 
-    /// @notice Tracks nonces for EIP-712 signatures to prevent replay attacks
-    mapping(address => uint256) public nonces;
+    /// @inheritdoc IFlashtestationRegistry
+    mapping(address => uint256) public override nonces;
 
     /// @dev Storage gap to allow for future storage variable additions in upgrades
     /// @dev This reserves 47 storage slots (out of 50 total - 3 used for attestationContract, registeredTEEs and nonces)
     uint256[47] __gap;
 
-    /**
-     * Initializer to set the Automata DCAP Attestation contract, which verifies TEE quotes
-     * @param owner The address of the initial owner of the contract, who is able to upgrade the contract
-     * @param _attestationContract The address of the Automata DCAP attestation contract, used to verify TEE quotes
-     */
-    function initialize(address owner, address _attestationContract) external initializer {
+    /// @inheritdoc IFlashtestationRegistry
+    function initialize(address owner, address _attestationContract) external override initializer {
         __Ownable_init(owner);
         __EIP712_init("FlashtestationRegistry", "1");
         require(_attestationContract != address(0), InvalidAttestationContract());
@@ -92,45 +88,24 @@ contract FlashtestationRegistry is
         _;
     }
 
-    /**
-     * @notice Registers a TEE workload with a specific TEE-controlled address in the FlashtestationRegistry
-     * @notice The TEE must be registered with a quote whose validity is verified by the attestationContract
-     * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
-     * @dev This is a costly operation (5 million gas) and should be used sparingly.
-     * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistrationData Abi-encoded application specific attested data, reserved for future upgrades
-     */
+    /// @inheritdoc IFlashtestationRegistry
     function registerTEEService(bytes calldata rawQuote, bytes calldata extendedRegistrationData)
         external
         payable
+        override
         nonReentrant
     {
         doRegister(msg.sender, rawQuote, extendedRegistrationData);
     }
 
-    /**
-     * @notice Registers a TEE workload with a specific TEE-controlled address using EIP-712 signatures
-     * @notice The TEE must be registered with a quote whose validity is verified by the attestationContract
-     * @dev In order to mitigate DoS attacks, the quote must be less than 20KB
-     * @dev This function exists so that the TEE does not need to be funded with gas for transaction fees, and
-     * instead can rely on any EOA to execute the transaction, but still only allow quotes from attested TEEs
-     * @dev Replay is implicitly shielded against replay attacks through the transaction's nonce (TEE must sign the new nonce)
-     * @param rawQuote The raw quote from the TEE device. Must be a V4 TDX quote
-     * @param extendedRegistrationData Abi-encoded application specific attested data, this is arbitrary app-related
-     * data that the app wants to associate with the TEE-controlled address. Even though it's passed in as a parameter,
-     * we can trust that it comes from the TEE because we verify that the hash derived from all of the variables in
-     * extendedRegistrationData matches the hash in the TDX report data.
-     * @param nonce The nonce to use for the EIP-712 signature (to prevent replay attacks)
-     * @param deadline The blocktime after which this signature is no longer valid
-     * @param signature The EIP-712 signature of the registration message
-     */
+    /// @inheritdoc IFlashtestationRegistry
     function permitRegisterTEEService(
         bytes calldata rawQuote,
         bytes calldata extendedRegistrationData,
         uint256 nonce,
         uint256 deadline,
         bytes calldata signature
-    ) external payable nonReentrant {
+    ) external payable override nonReentrant {
         // Create the digest using EIP712Upgradeable's _hashTypedDataV4
         bytes32 digest = hashTypedDataV4(computeStructHash(rawQuote, extendedRegistrationData, nonce, deadline));
 
@@ -235,51 +210,24 @@ contract FlashtestationRegistry is
         return existingQuoteHash != 0;
     }
 
-    /**
-     * @notice Fetches TEE registration for a given address
-     * @dev getRegistration will only return true if a valid TEE quote containing
-     * teeAddress in its reportData field was previously registered with the FlashtestationRegistry
-     * using the registerTEEService function.
-     * @param teeAddress The TEE-controlled address to check
-     * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
-     * @return registeredTEE The RegisteredTEE struct containing raw quote, parsed report body, and extended data
-     */
-    function getRegistration(address teeAddress) public view returns (bool, RegisteredTEE memory) {
+    /// @inheritdoc IFlashtestationRegistry
+    function getRegistration(address teeAddress) public view override returns (bool, RegisteredTEE memory) {
         return (registeredTEEs[teeAddress].isValid, registeredTEEs[teeAddress]);
     }
 
-    /**
-     * @notice Fetches only the validity status and quote hash for a given TEE address
-     * @dev This is a gas-optimized version of getRegistration that only returns the minimal data
-     * needed for caching optimizations in policy contracts
-     * @param teeAddress The TEE-controlled address to check
-     * @return isValid Whether the TEE quote, td attributes, or xfam have not been invalidated
-     * @return quoteHash The keccak256 hash of the raw quote
-     */
-    function getRegistrationStatus(address teeAddress) external view returns (bool isValid, bytes32 quoteHash) {
+    /// @inheritdoc IFlashtestationRegistry
+    function getRegistrationStatus(address teeAddress)
+        external
+        view
+        override
+        returns (bool isValid, bytes32 quoteHash)
+    {
         RegisteredTEE storage tee = registeredTEEs[teeAddress];
         return (tee.isValid, tee.quoteHash);
     }
 
-    /**
-     * @notice Invalidates the attestation of a TEE
-     * @dev This is a costly operation (5 million gas) and should be used sparingly.
-     * @dev Will always revert except if the attestation is valid and the attestation re-verification
-     * fails. This is to prevent a user needlessly calling this function and for a no-op to occur
-     * @dev This function exists to handle an important security requirement: occasionally Intel
-     * will release a new set of DCAP Endorsements for a particular TEE setup (for instance if a
-     * TDX vulnerability was discovered), which invalidates all prior quotes generated by that TEE.
-     * By invalidates we mean that the outputs generated by the TEE-controlled address associated
-     * with these invalid quotes are no longer secure and cannot be relied upon. This fact needs to be
-     * reflected onchain, so that any upstream contracts that try to call `getRegistration` will
-     * correctly return `false` for the TEE-controlled addresses associated with these invalid quotes.
-     * This is a security requirement to ensure that no downstream contracts can be exploited by
-     * a malicious TEE that has been compromised
-     * @dev Note: this function is callable by anyone, so that offchain monitoring services can
-     * quickly mark TEEs as invalid
-     * @param teeAddress The TEE-controlled address to invalidate
-     */
-    function invalidateAttestation(address teeAddress) external payable nonReentrant {
+    /// @inheritdoc IFlashtestationRegistry
+    function invalidateAttestation(address teeAddress) external payable override nonReentrant {
         // check to make sure it even makes sense to invalidate the TEE-controlled address
         // if the TEE-controlled address is not registered with the FlashtestationRegistry,
         // it doesn't make sense to invalidate the attestation
@@ -308,61 +256,32 @@ contract FlashtestationRegistry is
         }
     }
 
-    /**
-     * @notice Allows a user to increment their EIP-712 signature nonce, invalidating any previously signed but unexecuted permit signatures.
-     * @dev This function provides a way for users to proactively invalidate old signatures by incrementing their nonce,
-     * without needing to execute a valid permit.
-     * This is particularly useful if a user suspects a signature may have been compromised or simply wants to ensure
-     * that any outstanding, unused signatures with the current nonce can no longer be executed.
-     * @dev The function requires the provided nonce to match the user's current nonce, as a defense against the caller
-     * mistakenly invalidating a nonce that they did not intend to invalidate
-     * @param _nonce The expected current nonce for the caller; must match the stored nonce
-     */
-    function invalidatePreviousSignature(uint256 _nonce) external {
+    /// @inheritdoc IFlashtestationRegistry
+    function invalidatePreviousSignature(uint256 _nonce) external override {
         require(_nonce == nonces[msg.sender], InvalidNonce(nonces[msg.sender], _nonce));
         nonces[msg.sender]++;
         emit PreviousSignatureInvalidated(msg.sender, _nonce);
     }
 
-    /**
-     * @notice Computes the digest for the EIP-712 signature
-     * @dev This is useful for when both onchain and offchain users want to compute the digest
-     * for the EIP-712 signature, and then use it to verify the signature
-     * @param structHash The struct hash for the EIP-712 signature
-     * @return The digest for the EIP-712 signature
-     */
-    function hashTypedDataV4(bytes32 structHash) public view returns (bytes32) {
+    /// @inheritdoc IFlashtestationRegistry
+    function hashTypedDataV4(bytes32 structHash) public view override returns (bytes32) {
         return _hashTypedDataV4(structHash);
     }
 
-    /**
-     * @notice Computes the struct hash for the EIP-712 signature
-     * @dev This is useful for when both onchain and offchain users want to compute the struct hash
-     * for the EIP-712 signature, and then use it to verify the signature
-     * @param rawQuote The raw quote from the TEE device
-     * @param extendedRegistrationData Abi-encoded attested data, application specific
-     * @param nonce The nonce to use for the EIP-712 signature
-     * @param deadline The blocktime after which this signature is no longer valid
-     * @return The struct hash for the EIP-712 signature
-     */
+    /// @inheritdoc IFlashtestationRegistry
     function computeStructHash(
         bytes calldata rawQuote,
         bytes calldata extendedRegistrationData,
         uint256 nonce,
         uint256 deadline
-    ) public pure returns (bytes32) {
+    ) public pure override returns (bytes32) {
         return keccak256(
             abi.encode(REGISTER_TYPEHASH, keccak256(rawQuote), keccak256(extendedRegistrationData), nonce, deadline)
         );
     }
 
-    /**
-     * @notice Returns the domain separator for the EIP-712 signature
-     * @dev This is useful for when both onchain and offchain users want to compute the domain separator
-     * for the EIP-712 signature, and then use it to verify the signature
-     * @return The domain separator for the EIP-712 signature
-     */
-    function domainSeparator() external view returns (bytes32) {
+    /// @inheritdoc IFlashtestationRegistry
+    function domainSeparator() external view override returns (bytes32) {
         return _domainSeparatorV4();
     }
 }
