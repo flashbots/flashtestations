@@ -25,9 +25,7 @@ contract MockAutomataDcapAttestationFee {
     error InsufficientFee(uint256 required, uint256 provided);
 
     function verifyAndAttestOnChain(bytes calldata rawQuote) external payable returns (bool, bytes memory) {
-        if (msg.value < baseFee) {
-            revert InsufficientFee(baseFee, msg.value);
-        }
+        require(msg.value >= baseFee, InsufficientFee(baseFee, msg.value));
 
         QuoteResult memory result = quoteResults[rawQuote];
         return (result.success, result.output);

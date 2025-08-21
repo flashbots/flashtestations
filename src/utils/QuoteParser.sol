@@ -107,9 +107,7 @@ library QuoteParser {
      */
     function checkTEEVersion(bytes memory rawReportBody) internal pure {
         uint16 version = uint16(bytes2((rawReportBody.substring(0, 2)))); // uint16 is 2 bytes
-        if (version != ACCEPTED_TDX_VERSION) {
-            revert InvalidTEEVersion(version);
-        }
+        require(version == ACCEPTED_TDX_VERSION, InvalidTEEVersion(version));
     }
 
     /**
@@ -119,8 +117,6 @@ library QuoteParser {
      */
     function checkTEEType(bytes memory rawReportBody) internal pure {
         bytes4 teeType = bytes4(rawReportBody.substring(2, 4)); // 4 bytes
-        if (teeType != TDX_TEE) {
-            revert InvalidTEEType(teeType);
-        }
+        require(teeType == TDX_TEE, InvalidTEEType(teeType));
     }
 }

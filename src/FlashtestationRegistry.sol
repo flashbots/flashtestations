@@ -141,34 +141,32 @@ contract FlashtestationRegistry is
         limitBytesSize(extendedRegistrationData)
     {
         (bool success, bytes memory output) = attestationContract.verifyAndAttestOnChain{value: msg.value}(rawQuote);
-        if (!success) {
-            revert InvalidQuote(output);
-        }
+        require(success, InvalidQuote(output));
 
         // now we know the quote is valid, we can safely parse the output into the TDX report body,
         // from which we'll extract the data we need to register the TEE
         TD10ReportBody memory td10ReportBody = QuoteParser.parseV4VerifierOutput(output);
 
         // Binding the tee address and extended report data to the quote
-        if (td10ReportBody.reportData.length < TD_REPORTDATA_LENGTH) {
-            revert InvalidReportDataLength(td10ReportBody.reportData.length);
-        }
+        require(
+            td10ReportBody.reportData.length >= TD_REPORTDATA_LENGTH,
+            InvalidReportDataLength(td10ReportBody.reportData.length)
+        );
 
         (address teeAddress, bytes32 extendedDataReportHash) = QuoteParser.parseReportData(td10ReportBody.reportData);
 
         // Ensure that the caller is the TEE-controlled address, otherwise we have no guarantees that
         // the TEE-controlled address is the one that is registering the TEE
-        if (signer != teeAddress) {
-            revert SignerMustMatchTEEAddress(signer, teeAddress);
-        }
+        require(signer == teeAddress, SignerMustMatchTEEAddress(signer, teeAddress));
 
         // Verify that the extended registration data matches the hash in the TDX report data
         // This is to ensure that the values in extendedRegistrationData are the same as the values
         // in the TDX report data, which cannot be forged by the TEE-controlled address
         bytes32 extendedRegistrationDataHash = keccak256(extendedRegistrationData);
-        if (extendedRegistrationDataHash != extendedDataReportHash) {
-            revert InvalidRegistrationDataHash(extendedDataReportHash, extendedRegistrationDataHash);
-        }
+        require(
+            extendedRegistrationDataHash == extendedDataReportHash,
+            InvalidRegistrationDataHash(extendedDataReportHash, extendedRegistrationDataHash)
+        );
 
         bytes32 newQuoteHash = keccak256(rawQuote);
         bool previouslyRegistered = checkPreviousRegistration(teeAddress, newQuoteHash);
@@ -203,9 +201,7 @@ contract FlashtestationRegistry is
      */
     function checkPreviousRegistration(address teeAddress, bytes32 newQuoteHash) internal view returns (bool) {
         bytes32 existingQuoteHash = registeredTEEs[teeAddress].quoteHash;
-        if (newQuoteHash == existingQuoteHash) {
-            revert TEEServiceAlreadyRegistered(teeAddress);
-        }
+        require(newQuoteHash != existingQuoteHash, TEEServiceAlreadyRegistered(teeAddress));
 
         // if the TEE is already registered, but we're using a different quote,
         // return true to signal that the TEE is already registered but is updating its quote
@@ -234,28 +230,17 @@ contract FlashtestationRegistry is
         // if the TEE-controlled address is not registered with the FlashtestationRegistry,
         // it doesn't make sense to invalidate the attestation
         RegisteredTEE memory registeredTEE = registeredTEEs[teeAddress];
-        if (registeredTEE.rawQuote.length == 0) {
-            revert TEEServiceNotRegistered(teeAddress);
-        }
-
-        if (!registeredTEE.isValid) {
-            revert TEEServiceAlreadyInvalid(teeAddress);
-        }
+        require(registeredTEE.rawQuote.length > 0, TEEServiceNotRegistered(teeAddress));
+        require(registeredTEE.isValid, TEEServiceAlreadyInvalid(teeAddress));
 
         // now we check the attestation, and invalidate the TEE if it's no longer valid.
         // This will only happen if the DCAP Endorsements associated with the TEE's quote
         // have been updated
         (bool success,) = attestationContract.verifyAndAttestOnChain{value: msg.value}(registeredTEE.rawQuote);
-        if (success) {
-            // if the attestation is still valid, then this function call is a no-op except for
-            // wasting the caller's gas. So we revert here to signal that the TEE is still valid.
-            // Offchain users who want to monitor for potential invalid TEEs can do so by calling
-            // this function and checking for the `TEEIsStillValid` error
-            revert TEEIsStillValid(teeAddress);
-        } else {
-            registeredTEEs[teeAddress].isValid = false;
-            emit TEEServiceInvalidated(teeAddress);
-        }
+        require(!success, TEEIsStillValid(teeAddress));
+
+        registeredTEEs[teeAddress].isValid = false;
+        emit TEEServiceInvalidated(teeAddress);
     }
 
     /// @inheritdoc IFlashtestationRegistry
