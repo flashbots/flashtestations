@@ -31,13 +31,13 @@ interface IBlockBuilderPolicy {
 
     /// @notice Emitted when a workload is added to the policy
     /// @param workloadId The workload identifier
-    event WorkloadAddedToPolicy(bytes32 workloadId);
+    event WorkloadAddedToPolicy(bytes32 indexed workloadId);
     /// @notice Emitted when a workload is removed from the policy
     /// @param workloadId The workload identifier
-    event WorkloadRemovedFromPolicy(bytes32 workloadId);
+    event WorkloadRemovedFromPolicy(bytes32 indexed workloadId);
     /// @notice Emitted when the registry is set in the initializer
     /// @param registry The address of the registry
-    event RegistrySet(address registry);
+    event RegistrySet(address indexed registry);
     /// @notice Emitted when a block builder proof is successfully verified
     /// @param caller The address that called the verification function (TEE address)
     /// @param workloadId The workload identifier of the TEE

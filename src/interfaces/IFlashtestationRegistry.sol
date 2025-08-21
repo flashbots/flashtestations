@@ -25,14 +25,14 @@ interface IFlashtestationRegistry {
     /// @param teeAddress The address of the TEE service
     /// @param rawQuote The raw quote from the TEE device
     /// @param alreadyExists Whether the TEE service is already registered
-    event TEEServiceRegistered(address teeAddress, bytes rawQuote, bool alreadyExists);
+    event TEEServiceRegistered(address indexed teeAddress, bytes rawQuote, bool alreadyExists);
     /// @notice Emitted when a TEE service is invalidated
     /// @param teeAddress The address of the TEE service
-    event TEEServiceInvalidated(address teeAddress);
+    event TEEServiceInvalidated(address indexed teeAddress);
     /// @notice Emitted when a previous signature is invalidated
     /// @param teeAddress The address of the TEE service
     /// @param invalidatedNonce The nonce of the invalidated signature
-    event PreviousSignatureInvalidated(address teeAddress, uint256 invalidatedNonce);
+    event PreviousSignatureInvalidated(address indexed teeAddress, uint256 invalidatedNonce);
 
     // ============ Errors ============
 
