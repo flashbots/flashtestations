@@ -89,6 +89,7 @@ contract BlockBuilderPolicy is
     /// @inheritdoc IBlockBuilderPolicy
     function initialize(address _initialOwner, address _registry) external override initializer {
         __Ownable_init(_initialOwner);
+        __UUPSUpgradeable_init();
         __EIP712_init("BlockBuilderPolicy", "1");
         require(_registry != address(0), InvalidRegistry());
 

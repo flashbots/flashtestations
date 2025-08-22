@@ -66,6 +66,7 @@ contract FlashtestationRegistry is
         __Ownable_init(owner);
         __EIP712_init("FlashtestationRegistry", "1");
         __ReentrancyGuardTransient_init();
+        __UUPSUpgradeable_init();
         require(_attestationContract != address(0), InvalidAttestationContract());
         attestationContract = IAttestation(_attestationContract);
     }
