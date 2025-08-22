@@ -245,9 +245,10 @@ contract FlashtestationRegistry is
 
     /// @inheritdoc IFlashtestationRegistry
     function invalidatePreviousSignature(uint256 _nonce) external override {
-        require(_nonce == nonces[msg.sender], InvalidNonce(nonces[msg.sender], _nonce));
+        uint256 nonce = nonces[msg.sender];
+        require(_nonce == nonce, InvalidNonce(nonce, _nonce));
         nonces[msg.sender]++;
-        emit PreviousSignatureInvalidated(msg.sender, _nonce);
+        emit PreviousSignatureInvalidated(msg.sender, nonce);
     }
 
     /// @inheritdoc IFlashtestationRegistry
