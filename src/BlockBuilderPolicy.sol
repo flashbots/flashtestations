@@ -302,14 +302,4 @@ contract BlockBuilderPolicy is
     function domainSeparator() external view returns (bytes32) {
         return _domainSeparatorV4();
     }
-
-    /// @inheritdoc IBlockBuilderPolicy
-    function getApprovedWorkloads(bytes32 workloadId)
-        external
-        view
-        override
-        returns (string memory commitHash, string[] memory sourceLocators)
-    {
-        return (approvedWorkloads[workloadId].commitHash, approvedWorkloads[workloadId].sourceLocators);
-    }
 }
