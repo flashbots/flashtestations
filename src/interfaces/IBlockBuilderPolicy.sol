@@ -148,7 +148,9 @@ interface IBlockBuilderPolicy {
     /// @param workloadId The workload identifier
     function removeWorkloadFromPolicy(WorkloadId workloadId) external;
 
-    /// @notice Get the metadata for a workload
+    /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
+    /// @dev This is only updateable by governance (i.e. the owner) of the Policy contract
+    /// Adding and removing a workload is O(1)
     /// @param workloadId The workload identifier to query
     /// @return The metadata associated with the workload
     function getWorkloadMetadata(WorkloadId workloadId) external view returns (WorkloadMetadata memory);
@@ -175,16 +177,6 @@ interface IBlockBuilderPolicy {
     function domainSeparator() external view returns (bytes32);
 
     // ============ Auto-generated getters for public state ============
-
-    /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
-    /// @dev This is only updateable by governance (i.e. the owner) of the Policy contract
-    /// Adding and removing a workload is O(1).
-    /// This means the critical `_cachedIsAllowedPolicy` function is O(1) since we can directly check if a workloadId exists
-    /// in the mapping
-    function getApprovedWorkloads(bytes32 workloadId)
-        external
-        view
-        returns (string memory commitHash, string[] memory sourceLocators);
 
     /// @notice Address of the FlashtestationRegistry contract that verifies TEE quotes
     function registry() external view returns (address);
