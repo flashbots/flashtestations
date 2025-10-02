@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import "forge-std/Test.sol";
-import "../src/utils/StringUtils.sol";
+import {Test} from "forge-std/Test.sol";
+import {StringUtils} from "../src/utils/StringUtils.sol";
 
 contract StringUtilsTest is Test {
     function test_splitCommaSeparated_singleURL() public pure {

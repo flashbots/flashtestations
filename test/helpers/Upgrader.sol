@@ -1,7 +1,7 @@
 pragma solidity 0.8.28;
 
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 // this is a workaround to allow testing of the upgradeProxy function
 // which is internal in the Upgrades contract. See this foundry issue for more context:
