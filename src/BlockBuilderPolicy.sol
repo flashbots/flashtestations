@@ -47,22 +47,6 @@ contract BlockBuilderPolicy is
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
 
-    // ============ TDX workload constants ============
-
-    /// @dev See section 11.5.3 in TDX Module v1.5 Base Architecture Specification https://www.intel.com/content/www/us/en/content-details/733575/intel-tdx-module-v1-5-base-architecture-specification.html
-    /// @notice Enabled FPU (always enabled)
-    bytes8 constant TD_XFAM_FPU = 0x0000000000000001;
-    /// @notice Enabled SSE (always enabled)
-    bytes8 constant TD_XFAM_SSE = 0x0000000000000002;
-
-    /// @dev See section 3.4.1 in TDX Module ABI specification https://cdrdv2.intel.com/v1/dl/getContent/733579
-    /// @notice Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux
-    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
-    /// @notice Enabled Supervisor Protection Keys (PKS)
-    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000;
-    /// @notice Enabled Key Locker (KL)
-    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
-
     // ============ Storage Variables ============
 
     /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
@@ -227,12 +211,6 @@ contract BlockBuilderPolicy is
         override
         returns (WorkloadId)
     {
-        // We expect FPU and SSE xfam bits to be set, and anything else should be handled by explicitly allowing the workloadid
-        bytes8 expectedXfamBits = TD_XFAM_FPU | TD_XFAM_SSE;
-
-        // We don't mind VE_DISABLED, PKS, and KL tdattributes bits being set either way, anything else requires explicitly allowing the workloadid
-        bytes8 ignoredTdAttributesBitmask = TD_TDATTRS_VE_DISABLED | TD_TDATTRS_PKS | TD_TDATTRS_KL;
-
         return WorkloadId.wrap(
             keccak256(
                 bytes.concat(
@@ -243,8 +221,8 @@ contract BlockBuilderPolicy is
                     registration.parsedReportBody.rtMr3,
                     // VMM configuration
                     registration.parsedReportBody.mrConfigId,
-                    registration.parsedReportBody.xFAM ^ expectedXfamBits,
-                    registration.parsedReportBody.tdAttributes & ~ignoredTdAttributesBitmask
+                    registration.parsedReportBody.xFAM,
+                    registration.parsedReportBody.tdAttributes
                 )
             )
         );
