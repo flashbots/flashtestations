@@ -165,10 +165,7 @@ interface IBlockBuilderPolicy {
     /// @param blockContentHash The hash of the block content
     /// @param nonce The nonce to use for the EIP-712 signature
     /// @return The struct hash for the EIP-712 signature
-    function computeStructHash(uint8 version, bytes32 blockContentHash, uint256 nonce)
-        external
-        pure
-        returns (bytes32);
+    function computeStructHash(uint8 version, bytes32 blockContentHash, uint256 nonce) external pure returns (bytes32);
 
     /// @notice Returns the domain separator for the EIP-712 signature
     /// @dev This is useful for when both onchain and offchain users want to compute the domain separator

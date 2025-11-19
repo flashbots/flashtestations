@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
-
 /**
  * @title MockAutomataDcapAttestationFee
  * @dev A mock implementation of the AutomataDcapAttestationFee contract for testing

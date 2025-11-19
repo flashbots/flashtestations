@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
 import {IBlockBuilderPolicy, WorkloadId} from "../src/interfaces/IBlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
-import {MockQuote} from "../test/FlashtestationRegistry.t.sol";
-import {QuoteParser} from "../src/utils/QuoteParser.sol";
 import {Upgrader} from "./helpers/Upgrader.sol";
 import {MockAutomataDcapAttestationFee} from "./mocks/MockAutomataDcapAttestationFee.sol";
 import {Helper} from "./helpers/Helper.sol";
-import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
 
 contract BlockBuilderPolicyTest is Test {
     // Helper function to create dynamic string arrays
@@ -93,7 +90,8 @@ contract BlockBuilderPolicyTest is Test {
         )
     });
 
-    WorkloadId arbitraryWorkloadId = WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
+    WorkloadId arbitraryWorkloadId =
+        WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
 
     using ECDSA for bytes32;

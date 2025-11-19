@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
-import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IAttestation} from "../src/interfaces/IAttestation.sol";
 import {MockAutomataDcapAttestationFee} from "../test/mocks/MockAutomataDcapAttestationFee.sol";
 import {AutomataDcapAttestationFee} from "automata-dcap-attestation/contracts/AutomataDcapAttestationFee.sol";
