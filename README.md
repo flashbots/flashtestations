@@ -259,3 +259,23 @@ Then, to execute, run:
 ```
 forge script --chain 1301 script/Interactions.s.sol:AddWorkloadToPolicyScript --rpc-url $RPC_URL --broadcast --verify --interactives 1 -vvvv
 ```
+
+## Upgrade
+
+### UpgradeBlockBuilderFromV1
+
+#### Reason For Upgrade
+
+This is nearly identical to the latest version of the policy contract located at src/BlockBuilderPolicy contract, except in the latest has had the logic around the xfam and tdattributes bit masking removed. This was done because there was a bug in the bit masking logic, and we want to fix the bug and simplify the contract by removing the bit masking logic.
+
+#### Deploy Command
+
+Run the command below, then paste in the private key of the address you want to use to pay for gas and execute the deployment:
+
+```
+forge script script/UpgradeBlockBuilderFromV1.s.sol:UpgradeBlockBuilderPolicyV1 \
+  --sig "run(address)" <POLICY_PROXY_ADDRESS> \
+  --rpc-url <RPC_URL> \
+  -vvvvv --verify --broadcast --interactives 1
+```
+
