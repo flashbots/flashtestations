@@ -22,17 +22,14 @@ struct CachedWorkload {
 }
 
 /**
- * @title BlockBuilderPolicy
- * @notice A reference implementation of a policy contract for the FlashtestationRegistry
- * @notice A Policy is a collection of related WorkloadIds. A Policy exists to specify which
- * WorkloadIds are valid for a particular purpose, in this case for remote block building. It also
- * exists to handle the problem that TEE workloads will need to change multiple times a year, either because
- * of Intel DCAP Endorsement updates or updates to the TEE configuration (and thus its WorkloadId). Without
- * Policies, consumer contracts that makes use of Flashtestations would need to be updated every time a TEE workload
- * changes, which is a costly and error-prone process. Instead, consumer contracts need only check if a TEE address
- * is allowed under any workload in a Policy, and the FlashtestationRegistry will handle the rest
+ * @title V1BlockBuilderPolicy
+ * @notice This is nearly identical to the latest version of the policy contract located at
+ * src/BlockBuilderPolicy contract, except in the latest has had the logic around the xfam and tdattributes bit
+ * masking removed. This was done because there was a bug in the bit masking logic, and we want to fix the bug
+ * and simplify the contract by removing the bit masking logic
+ *
  */
-contract BlockBuilderPolicy is
+contract V1BlockBuilderPolicy is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -46,6 +43,22 @@ contract BlockBuilderPolicy is
     /// @inheritdoc IBlockBuilderPolicy
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
+
+    // ============ TDX workload constants ============
+
+    /// @dev See section 11.5.3 in TDX Module v1.5 Base Architecture Specification https://www.intel.com/content/www/us/en/content-details/733575/intel-tdx-module-v1-5-base-architecture-specification.html
+    /// @notice Enabled FPU (always enabled)
+    bytes8 constant TD_XFAM_FPU = 0x0000000000000001;
+    /// @notice Enabled SSE (always enabled)
+    bytes8 constant TD_XFAM_SSE = 0x0000000000000002;
+
+    /// @dev See section 3.4.1 in TDX Module ABI specification https://cdrdv2.intel.com/v1/dl/getContent/733579
+    /// @notice Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux
+    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
+    /// @notice Enabled Supervisor Protection Keys (PKS)
+    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000;
+    /// @notice Enabled Key Locker (KL)
+    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
 
     // ============ Storage Variables ============
 
@@ -211,6 +224,12 @@ contract BlockBuilderPolicy is
         override
         returns (WorkloadId)
     {
+        // We expect FPU and SSE xfam bits to be set, and anything else should be handled by explicitly allowing the workloadid
+        bytes8 expectedXfamBits = TD_XFAM_FPU | TD_XFAM_SSE;
+
+        // We don't mind VE_DISABLED, PKS, and KL tdattributes bits being set either way, anything else requires explicitly allowing the workloadid
+        bytes8 ignoredTdAttributesBitmask = TD_TDATTRS_VE_DISABLED | TD_TDATTRS_PKS | TD_TDATTRS_KL;
+
         return WorkloadId.wrap(
             keccak256(
                 bytes.concat(
@@ -221,8 +240,8 @@ contract BlockBuilderPolicy is
                     registration.parsedReportBody.rtMr3,
                     // VMM configuration
                     registration.parsedReportBody.mrConfigId,
-                    registration.parsedReportBody.xFAM,
-                    registration.parsedReportBody.tdAttributes
+                    registration.parsedReportBody.xFAM ^ expectedXfamBits,
+                    registration.parsedReportBody.tdAttributes & ~ignoredTdAttributesBitmask
                 )
             )
         );
