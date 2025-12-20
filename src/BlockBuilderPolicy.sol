@@ -6,20 +6,14 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {FlashtestationRegistry} from "./FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "./interfaces/IFlashtestationRegistry.sol";
-import {IBlockBuilderPolicy, WorkloadId} from "./interfaces/IBlockBuilderPolicy.sol";
-
-/**
- * @notice Cached workload information for gas optimization
- * @dev Stores computed workloadId and associated quoteHash to avoid expensive recomputation
- */
-struct CachedWorkload {
-    /// @notice The computed workload identifier
-    WorkloadId workloadId;
-    /// @notice The keccak256 hash of the raw quote used to compute this workloadId
-    bytes32 quoteHash;
-}
+import {IBasePolicy} from "./interfaces/IBasePolicy.sol";
+import {IBlockBuilderPolicy} from "./interfaces/IBlockBuilderPolicy.sol";
+import {IWorkloadDeriver} from "./interfaces/IWorkloadDeriver.sol";
+import {WorkloadId} from "./interfaces/IPolicyCommon.sol";
+import {TD10ReportBody} from "automata-dcap-attestation/contracts/types/V4Structs.sol";
+import {BasePolicy} from "./BasePolicy.sol";
+import {TDXWorkloadDeriver} from "./derivers/TDXWorkloadDeriver.sol";
 
 /**
  * @title BlockBuilderPolicy
@@ -33,6 +27,7 @@ struct CachedWorkload {
  * is allowed under any workload in a Policy, and the FlashtestationRegistry will handle the rest
  */
 contract BlockBuilderPolicy is
+    BasePolicy,
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -47,33 +42,7 @@ contract BlockBuilderPolicy is
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
 
-    // ============ TDX workload constants ============
-
-    /// @dev See section 11.5.3 in TDX Module v1.5 Base Architecture Specification https://www.intel.com/content/www/us/en/content-details/733575/intel-tdx-module-v1-5-base-architecture-specification.html
-    /// @notice Enabled FPU (always enabled)
-    bytes8 constant TD_XFAM_FPU = 0x0000000000000001;
-    /// @notice Enabled SSE (always enabled)
-    bytes8 constant TD_XFAM_SSE = 0x0000000000000002;
-
-    /// @dev See section 3.4.1 in TDX Module ABI specification https://cdrdv2.intel.com/v1/dl/getContent/733579
-    /// @notice Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux
-    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
-    /// @notice Enabled Supervisor Protection Keys (PKS)
-    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000;
-    /// @notice Enabled Key Locker (KL)
-    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
-
     // ============ Storage Variables ============
-
-    /// @notice Mapping from workloadId to its metadata (commit hash and source locators)
-    /// @dev This is only updateable by governance (i.e. the owner) of the Policy contract
-    /// Adding and removing a workload is O(1).
-    /// This means the critical `_cachedIsAllowedPolicy` function is O(1) since we can directly check if a workloadId exists
-    /// in the mapping
-    mapping(bytes32 workloadId => WorkloadMetadata) private approvedWorkloads;
-
-    /// @inheritdoc IBlockBuilderPolicy
-    address public registry;
 
     /// @inheritdoc IBlockBuilderPolicy
     mapping(address teeAddress => uint256 permitNonce) public nonces;
@@ -82,24 +51,71 @@ contract BlockBuilderPolicy is
     /// @dev Maps teeAddress to cached workload information for gas optimization
     mapping(address teeAddress => CachedWorkload) private cachedWorkloads;
 
+    /// @notice Workload deriver used by the shared base policy logic (Option B).
+    IWorkloadDeriver public workloadDeriver;
+
+    /// @notice Emitted when the workload deriver is set or updated.
+    event WorkloadDeriverSet(address indexed deriver);
+
     /// @dev Storage gap to allow for future storage variable additions in upgrades
-    /// @dev This reserves 46 storage slots (out of 50 total - 4 used for approvedWorkloads, registry, nonces, and cachedWorkloads)
-    uint256[46] __gap;
+    /// @dev This reserves 45 storage slots (out of 50 total - 5 used for approvedWorkloads, registry, nonces, cachedWorkloads, and workloadDeriver)
+    uint256[45] __gap;
 
     /// @inheritdoc IBlockBuilderPolicy
-    function initialize(address _initialOwner, address _registry) external override initializer {
+    function initialize(address _initialOwner, address _registry, address deriver) external override initializer {
         __Ownable_init(_initialOwner);
         __UUPSUpgradeable_init();
         __EIP712_init("BlockBuilderPolicy", "1");
-        require(_registry != address(0), InvalidRegistry());
+        _basePolicyInit(_registry);
+        _setWorkloadDeriver(deriver);
+    }
 
-        registry = _registry;
-        emit RegistrySet(_registry);
+    /// @notice Set the workload deriver (governance only).
+    /// @dev This is needed for proxy upgrade flows where a new storage variable is introduced.
+    function setWorkloadDeriver(address deriver) external override onlyOwner {
+        _setWorkloadDeriver(deriver);
+    }
+
+    function _setWorkloadDeriver(address deriver) internal {
+        require(deriver != address(0), "InvalidWorkloadDeriver");
+        require(deriver.code.length > 0, "InvalidWorkloadDeriver");
+
+        // Guard: this policy's `isAllowedPolicy` override assumes the configured deriver supports
+        // `workloadIdForReportBody(TD10ReportBody)` (to avoid re-parsing raw quotes).
+        //
+        // Solidity "type safety" is not enforced at runtime, so we proactively verify the method exists and succeeds.
+        TD10ReportBody memory empty;
+        (bool ok, bytes memory ret) =
+            deriver.staticcall(abi.encodeCall(TDXWorkloadDeriver.workloadIdForReportBody, (empty)));
+        require(ok && ret.length == 32, "DeriverMissingWorkloadIdForReportBody");
+
+        workloadDeriver = IWorkloadDeriver(deriver);
+        emit WorkloadDeriverSet(deriver);
     }
 
     /// @notice Restricts upgrades to owner only
     /// @param newImplementation The address of the new implementation contract
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // ============ BasePolicy hooks ============
+
+    function _checkPolicyAuthority() internal view override {
+        _checkOwner();
+    }
+
+    function _workloadDeriver() internal view override returns (IWorkloadDeriver) {
+        return workloadDeriver;
+    }
+
+    function _getCachedWorkload(address teeAddress) internal view override returns (CachedWorkload memory) {
+        return cachedWorkloads[teeAddress];
+    }
+
+    function _setCachedWorkload(address teeAddress, CachedWorkload memory cached) internal override {
+        cachedWorkloads[teeAddress] = cached;
+    }
+
+    // ============ Block-builder proof verification ============
 
     /// @inheritdoc IBlockBuilderPolicy
     function verifyBlockBuilderProof(uint8 version, bytes32 blockContentHash) external override {
@@ -152,21 +168,26 @@ contract BlockBuilderPolicy is
         emit BlockBuilderProofVerified(teeAddress, workloadKey, version, blockContentHash, commitHash);
     }
 
-    /// @inheritdoc IBlockBuilderPolicy
-    function isAllowedPolicy(address teeAddress) public view override returns (bool allowed, WorkloadId) {
-        // Get full registration data and compute workload ID
+    /// @inheritdoc BasePolicy
+    /// @dev Override to avoid re-parsing `registration.rawQuote` on cache misses. We already have the parsed report body
+    ///      stored in the registry registration.
+    function isAllowedPolicy(address teeAddress)
+        public
+        view
+        override(BasePolicy, IBasePolicy)
+        returns (bool allowed, WorkloadId)
+    {
         (, IFlashtestationRegistry.RegisteredTEE memory registration) =
-            FlashtestationRegistry(registry).getRegistration(teeAddress);
+            IFlashtestationRegistry(registry).getRegistration(teeAddress);
 
-        // Invalid Registrations means the attestation used to register the TEE is no longer valid
-        // and so we cannot trust any input from the TEE
         if (!registration.isValid) {
             return (false, WorkloadId.wrap(0));
         }
 
-        WorkloadId workloadId = workloadIdForTDRegistration(registration);
+        // NOTE: This policy assumes the configured deriver supports TDX report-body derivation.
+        WorkloadId workloadId =
+            TDXWorkloadDeriver(address(workloadDeriver)).workloadIdForReportBody(registration.parsedReportBody);
 
-        // Check if the workload exists in our approved workloads mapping
         if (bytes(approvedWorkloads[WorkloadId.unwrap(workloadId)].commitHash).length > 0) {
             return (true, workloadId);
         }
@@ -174,118 +195,22 @@ contract BlockBuilderPolicy is
         return (false, WorkloadId.wrap(0));
     }
 
-    /// @notice isAllowedPolicy but with caching to reduce gas costs
-    /// @dev This function is only used by the verifyBlockBuilderProof function, which needs to be as efficient as possible
-    /// because it is called onchain for every flashblock. The workloadId is cached to avoid expensive recomputation
-    /// @dev A careful reader will notice that this function does not delete stale cache entries. It overwrites them
-    /// if the underlying TEE registration is still valid. But for stale cache entries in every other scenario, the
-    /// cache entry persists indefinitely. This is because every other instance results in a return value of (false, 0)
-    /// to the caller (which is always the verifyBlockBuilderProof function) and it immediately reverts. This is an unfortunate
-    /// consequence of our need to make this function as gas-efficient as possible, otherwise we would try to cleanup
-    /// stale cache entries
-    /// @param teeAddress The TEE-controlled address
-    /// @return True if the TEE is using an approved workload in the policy
-    /// @return The workloadId of the TEE that is using an approved workload in the policy, or 0 if
-    /// the TEE is not using an approved workload in the policy
-    function _cachedIsAllowedPolicy(address teeAddress) private returns (bool, WorkloadId) {
-        // Get the current registration status (fast path)
-        (bool isValid, bytes32 quoteHash) = FlashtestationRegistry(registry).getRegistrationStatus(teeAddress);
-        if (!isValid) {
-            return (false, WorkloadId.wrap(0));
-        }
-
-        // Now, check if we have a cached workload for this TEE
-        CachedWorkload memory cached = cachedWorkloads[teeAddress];
-
-        // Check if we've already fetched and computed the workloadId for this TEE
-        bytes32 cachedWorkloadId = WorkloadId.unwrap(cached.workloadId);
-        if (cachedWorkloadId != 0 && cached.quoteHash == quoteHash) {
-            // Cache hit - verify the workload is still a part of this policy's approved workloads
-            if (bytes(approvedWorkloads[cachedWorkloadId].commitHash).length > 0) {
-                return (true, cached.workloadId);
-            } else {
-                // The workload is no longer approved, so the policy is no longer valid for this TEE\
-                return (false, WorkloadId.wrap(0));
-            }
-        } else {
-            // Cache miss or quote changed - use the view function to get the result
-            (bool allowed, WorkloadId workloadId) = isAllowedPolicy(teeAddress);
-
-            if (allowed) {
-                // Update cache with the new workload ID
-                cachedWorkloads[teeAddress] = CachedWorkload({workloadId: workloadId, quoteHash: quoteHash});
-            }
-
-            return (allowed, workloadId);
-        }
+    /// @notice Derive a workloadId from a parsed report body via the configured deriver.
+    /// @dev This is `view` because it performs an external call to the configured deriver contract.
+    /// @dev We intentionally call `workloadIdForReportBody` directly to avoid re-parsing the quote when the report body
+    ///      is already available.
+    function workloadIdForReportBody(TD10ReportBody memory reportBody) public view returns (WorkloadId) {
+        return TDXWorkloadDeriver(address(workloadDeriver)).workloadIdForReportBody(reportBody);
     }
 
     /// @inheritdoc IBlockBuilderPolicy
     function workloadIdForTDRegistration(IFlashtestationRegistry.RegisteredTEE memory registration)
         public
-        pure
+        view
         override
         returns (WorkloadId)
     {
-        // We expect FPU and SSE xfam bits to be set, and anything else should be handled by explicitly allowing the workloadid
-        bytes8 expectedXfamBits = TD_XFAM_FPU | TD_XFAM_SSE;
-
-        // We don't mind VE_DISABLED, PKS, and KL tdattributes bits being set either way, anything else requires explicitly allowing the workloadid
-        bytes8 ignoredTdAttributesBitmask = TD_TDATTRS_VE_DISABLED | TD_TDATTRS_PKS | TD_TDATTRS_KL;
-
-        return WorkloadId.wrap(
-            keccak256(
-                bytes.concat(
-                    registration.parsedReportBody.mrTd,
-                    registration.parsedReportBody.rtMr0,
-                    registration.parsedReportBody.rtMr1,
-                    registration.parsedReportBody.rtMr2,
-                    registration.parsedReportBody.rtMr3,
-                    // VMM configuration
-                    registration.parsedReportBody.mrConfigId,
-                    registration.parsedReportBody.xFAM ^ expectedXfamBits,
-                    registration.parsedReportBody.tdAttributes & ~ignoredTdAttributesBitmask
-                )
-            )
-        );
-    }
-
-    /// @inheritdoc IBlockBuilderPolicy
-    function addWorkloadToPolicy(WorkloadId workloadId, string calldata commitHash, string[] calldata sourceLocators)
-        external
-        override
-        onlyOwner
-    {
-        require(bytes(commitHash).length > 0, EmptyCommitHash());
-        require(sourceLocators.length > 0, EmptySourceLocators());
-
-        bytes32 workloadKey = WorkloadId.unwrap(workloadId);
-
-        // Check if workload already exists
-        require(bytes(approvedWorkloads[workloadKey].commitHash).length == 0, WorkloadAlreadyInPolicy());
-
-        // Store the workload metadata
-        approvedWorkloads[workloadKey] = WorkloadMetadata({commitHash: commitHash, sourceLocators: sourceLocators});
-
-        emit WorkloadAddedToPolicy(workloadKey);
-    }
-
-    /// @inheritdoc IBlockBuilderPolicy
-    function removeWorkloadFromPolicy(WorkloadId workloadId) external override onlyOwner {
-        bytes32 workloadKey = WorkloadId.unwrap(workloadId);
-
-        // Check if workload exists
-        require(bytes(approvedWorkloads[workloadKey].commitHash).length > 0, WorkloadNotInPolicy());
-
-        // Remove the workload metadata
-        delete approvedWorkloads[workloadKey];
-
-        emit WorkloadRemovedFromPolicy(workloadKey);
-    }
-
-    /// @inheritdoc IBlockBuilderPolicy
-    function getWorkloadMetadata(WorkloadId workloadId) external view override returns (WorkloadMetadata memory) {
-        return approvedWorkloads[WorkloadId.unwrap(workloadId)];
+        return workloadIdForReportBody(registration.parsedReportBody);
     }
 
     /// @inheritdoc IBlockBuilderPolicy

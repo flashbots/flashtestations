@@ -312,11 +312,7 @@ library Helper {
         });
     }
 
-    function withQuoteVersion(OutputBuilder memory builder, uint16 value)
-        internal
-        pure
-        returns (OutputBuilder memory)
-    {
+    function withQuoteVersion(OutputBuilder memory builder, uint16 value) internal pure returns (OutputBuilder memory) {
         builder.quoteVersion = value;
         return builder;
     }
@@ -326,11 +322,7 @@ library Helper {
         return builder;
     }
 
-    function withTcbStatus(OutputBuilder memory builder, TCBStatus value)
-        internal
-        pure
-        returns (OutputBuilder memory)
-    {
+    function withTcbStatus(OutputBuilder memory builder, TCBStatus value) internal pure returns (OutputBuilder memory) {
         builder.tcbStatus = value;
         return builder;
     }

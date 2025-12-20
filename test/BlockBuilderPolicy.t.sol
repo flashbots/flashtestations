@@ -6,7 +6,10 @@ import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
-import {IBlockBuilderPolicy, WorkloadId} from "../src/interfaces/IBlockBuilderPolicy.sol";
+import {IBlockBuilderPolicy} from "../src/interfaces/IBlockBuilderPolicy.sol";
+import {IPolicyCommon} from "../src/interfaces/IPolicyCommon.sol";
+import {WorkloadId} from "../src/interfaces/IPolicyCommon.sol";
+import {TDXWorkloadDeriver} from "../src/derivers/TDXWorkloadDeriver.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
 import {MockQuote} from "../test/FlashtestationRegistry.t.sol";
@@ -28,6 +31,7 @@ contract BlockBuilderPolicyTest is Test {
     FlashtestationRegistry public registry;
     MockAutomataDcapAttestationFee public attestationContract;
     BlockBuilderPolicy public policy;
+    TDXWorkloadDeriver public deriver;
     Upgrader public upgrader = new Upgrader();
     address public owner = address(this);
 
@@ -93,7 +97,8 @@ contract BlockBuilderPolicyTest is Test {
         )
     });
 
-    WorkloadId arbitraryWorkloadId = WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
+    WorkloadId arbitraryWorkloadId =
+        WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
 
     using ECDSA for bytes32;
@@ -106,9 +111,11 @@ contract BlockBuilderPolicyTest is Test {
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
+        deriver = new TDXWorkloadDeriver();
         address policyImplementation = address(new BlockBuilderPolicy());
         address policyProxy = UnsafeUpgrades.deployUUPSProxy(
-            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(registry)))
+            policyImplementation,
+            abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(registry), address(deriver)))
         );
         policy = BlockBuilderPolicy(policyProxy);
     }
@@ -127,11 +134,13 @@ contract BlockBuilderPolicyTest is Test {
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
+        deriver = new TDXWorkloadDeriver();
         address policyImplementation = address(new BlockBuilderPolicy());
 
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0x0)));
         UnsafeUpgrades.deployUUPSProxy(
-            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (address(0), address(registry)))
+            policyImplementation,
+            abi.encodeCall(BlockBuilderPolicy.initialize, (address(0), address(registry), address(deriver)))
         );
     }
 
@@ -143,11 +152,12 @@ contract BlockBuilderPolicyTest is Test {
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
+        deriver = new TDXWorkloadDeriver();
         address policyImplementation = address(new BlockBuilderPolicy());
 
-        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.InvalidRegistry.selector));
+        vm.expectRevert(abi.encodeWithSelector(IPolicyCommon.InvalidRegistry.selector));
         UnsafeUpgrades.deployUUPSProxy(
-            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(0)))
+            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(0), address(deriver)))
         );
     }
 
@@ -185,17 +195,17 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_addWorkloadToPolicy_reverts_if_duplicate() public {
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
-        vm.expectRevert(IBlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
+        vm.expectRevert(IPolicyCommon.WorkloadAlreadyInPolicy.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_empty_commit_hash() public {
-        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.EmptyCommitHash.selector, 0));
+        vm.expectRevert(IPolicyCommon.EmptyCommitHash.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, "", mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_empty_source_locators() public {
-        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.EmptySourceLocators.selector, 0));
+        vm.expectRevert(IPolicyCommon.EmptySourceLocators.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, new string[](0));
     }
 
@@ -258,7 +268,7 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_removeWorkloadFromPolicy_reverts_if_not_present() public {
-        vm.expectRevert(IBlockBuilderPolicy.WorkloadNotInPolicy.selector);
+        vm.expectRevert(IPolicyCommon.WorkloadNotInPolicy.selector);
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
     }
 
