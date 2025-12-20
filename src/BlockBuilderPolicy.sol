@@ -184,7 +184,8 @@ contract BlockBuilderPolicy is
             return (false, WorkloadId.wrap(0));
         }
 
-        // NOTE: This policy assumes the configured deriver supports TDX report-body derivation.
+        // NOTE: This policy enforces that the configured deriver supports TDX report-body derivation
+        // via checks in _setWorkloadDeriver
         WorkloadId workloadId =
             TDXWorkloadDeriver(address(workloadDeriver)).workloadIdForReportBody(registration.parsedReportBody);
 
