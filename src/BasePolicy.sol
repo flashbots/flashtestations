@@ -61,6 +61,7 @@ abstract contract BasePolicy is IBasePolicy {
     /// @inheritdoc IBasePolicy
     function addWorkloadToPolicy(WorkloadId workloadId, string calldata commitHash, string[] calldata sourceLocators)
         external
+        virtual
         override
     {
         _checkPolicyAuthority();
@@ -80,7 +81,7 @@ abstract contract BasePolicy is IBasePolicy {
     }
 
     /// @inheritdoc IBasePolicy
-    function removeWorkloadFromPolicy(WorkloadId workloadId) external override {
+    function removeWorkloadFromPolicy(WorkloadId workloadId) external virtual override {
         _checkPolicyAuthority();
 
         bytes32 workloadKey = WorkloadId.unwrap(workloadId);
