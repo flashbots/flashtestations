@@ -22,9 +22,13 @@ abstract contract BasePolicy is IBasePolicy {
         bytes32 quoteHash;
     }
 
-    // ============ Storage (DO NOT REORDER / ADD) ============
+    // ============ Storage Variables (DO NOT REORDER / ADD) ============
 
     /// @notice Mapping from workloadId to its metadata (commit hash and source locators).
+    /// @dev This is only updateable by governance (i.e. the policy authority).
+    /// Adding and removing a workload is O(1).
+    /// This means the critical `_cachedIsAllowedPolicy` function is O(1) since we can directly check if a workloadId
+    /// exists in the mapping.
     mapping(bytes32 workloadId => WorkloadMetadata) internal approvedWorkloads;
 
     /// @inheritdoc IBasePolicy
@@ -55,6 +59,8 @@ abstract contract BasePolicy is IBasePolicy {
 
     /// @dev Cache write hook.
     function _setCachedWorkload(address teeAddress, CachedWorkload memory cached) internal virtual;
+
+    // ============ Functions ============
 
     // ============ Common policy logic ============
 
@@ -102,7 +108,7 @@ abstract contract BasePolicy is IBasePolicy {
 
     /// @inheritdoc IBasePolicy
     function isAllowedPolicy(address teeAddress) public view virtual override returns (bool allowed, WorkloadId) {
-        // Get full registration data
+        // Get full registration data and compute workload ID
         (, IFlashtestationRegistry.RegisteredTEE memory registration) =
             IFlashtestationRegistry(registry).getRegistration(teeAddress);
 
@@ -143,6 +149,8 @@ abstract contract BasePolicy is IBasePolicy {
     /// @dev Cache cleanup:
     ///      - This function does not proactively delete stale cache entries. On invalid registrations it returns
     ///        `(false, 0)` and callers typically revert, so cleanup is intentionally skipped to keep the hot path cheap.
+    ///      - Stale cache entries for all other "not allowed" scenarios persist indefinitely for the same reason:
+    ///        the caller reverts immediately and the hot path avoids extra storage writes.
     ///
     /// @param teeAddress The TEE-controlled address to check.
     /// @return allowed True if the TEE is registered, valid, and running an approved workload.
@@ -183,4 +191,3 @@ abstract contract BasePolicy is IBasePolicy {
         }
     }
 }
-

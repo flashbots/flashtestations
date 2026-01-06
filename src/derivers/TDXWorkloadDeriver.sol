@@ -10,13 +10,20 @@ import {QuoteParser} from "../utils/QuoteParser.sol";
 /// @dev Kept alongside `TDXWorkloadDeriver` so policies can reuse the exact same logic without
 ///      having to make an external call.
 library TDXWorkloadDeriverLib {
+    // ============ TDX workload constants ============
+
     /// @dev See section 11.5.3 in TDX Module v1.5 Base Architecture Specification.
+    /// @notice Enabled FPU (always enabled).
     bytes8 internal constant TD_XFAM_FPU = 0x0000000000000001;
+    /// @notice Enabled SSE (always enabled).
     bytes8 internal constant TD_XFAM_SSE = 0x0000000000000002;
 
     /// @dev See section 3.4.1 in TDX Module ABI specification.
+    /// @notice Allows disabling of EPT violation conversion to #VE on access of PENDING pages. Needed for Linux.
     bytes8 internal constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
+    /// @notice Enabled Supervisor Protection Keys (PKS).
     bytes8 internal constant TD_TDATTRS_PKS = 0x0000000040000000;
+    /// @notice Enabled Key Locker (KL).
     bytes8 internal constant TD_TDATTRS_KL = 0x0000000080000000;
 
     function workloadIdForReportBody(TD10ReportBody memory reportBody) internal pure returns (WorkloadId) {
@@ -61,4 +68,3 @@ contract TDXWorkloadDeriver is IWorkloadDeriver {
         return TDXWorkloadDeriverLib.workloadIdForReportBody(reportBody);
     }
 }
-

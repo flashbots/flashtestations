@@ -61,6 +61,8 @@ contract BlockBuilderPolicy is
     /// @dev This reserves 45 storage slots (out of 50 total - 5 used for approvedWorkloads, registry, nonces, cachedWorkloads, and workloadDeriver)
     uint256[45] __gap;
 
+    // ============ Functions ============
+
     /// @inheritdoc IBlockBuilderPolicy
     function initialize(address _initialOwner, address _registry, address deriver) external override initializer {
         __Ownable_init(_initialOwner);
@@ -211,6 +213,7 @@ contract BlockBuilderPolicy is
         override
         returns (WorkloadId)
     {
+        // Uses TDXWorkloadDeriverLib (see the deriver for constants and derivation details).
         return workloadIdForReportBody(registration.parsedReportBody);
     }
 
