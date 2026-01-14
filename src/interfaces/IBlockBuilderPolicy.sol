@@ -22,6 +22,10 @@ interface IBlockBuilderPolicy is IBasePolicy {
         address caller, bytes32 workloadId, uint8 version, bytes32 blockContentHash, string commitHash
     );
 
+    /// @notice Emitted when the workload deriver is set or updated.
+    /// @param deriver The address of the workload deriver contract.
+    event WorkloadDeriverSet(address indexed deriver);
+
     // ============ Errors ============
     /// @notice Emitted when the address is not in the approvedWorkloads mapping
     error UnauthorizedBlockBuilder(address caller);

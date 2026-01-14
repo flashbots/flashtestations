@@ -55,9 +55,6 @@ contract BlockBuilderPolicy is
     /// @dev Composition pattern allows swapping derivation implementations without modifying base policy logic.
     IWorkloadDeriver public workloadDeriver;
 
-    /// @notice Emitted when the workload deriver is set or updated.
-    event WorkloadDeriverSet(address indexed deriver);
-
     /// @dev Storage gap to allow for future storage variable additions in upgrades
     /// @dev This reserves 45 storage slots (out of 50 total - 5 used for approvedWorkloads, registry, nonces, cachedWorkloads, and workloadDeriver)
     uint256[45] __gap;
