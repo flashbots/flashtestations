@@ -31,13 +31,6 @@ contract LegacyBlockBuilderPolicy is
     bytes32 public constant VERIFY_BLOCK_BUILDER_PROOF_TYPEHASH =
         keccak256("VerifyBlockBuilderProof(uint8 version,bytes32 blockContentHash,uint256 nonce)");
 
-    // TDX workload constants (legacy)
-    bytes8 constant TD_XFAM_FPU = 0x0000000000000001;
-    bytes8 constant TD_XFAM_SSE = 0x0000000000000002;
-    bytes8 constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
-    bytes8 constant TD_TDATTRS_PKS = 0x0000000040000000;
-    bytes8 constant TD_TDATTRS_KL = 0x0000000080000000;
-
     // ===== Storage =====
     mapping(bytes32 workloadId => WorkloadMetadata) private approvedWorkloads;
     address public registry;
@@ -125,9 +118,6 @@ contract LegacyBlockBuilderPolicy is
         override
         returns (WorkloadId)
     {
-        bytes8 expectedXfamBits = TD_XFAM_FPU | TD_XFAM_SSE;
-        bytes8 ignoredTdAttributesBitmask = TD_TDATTRS_VE_DISABLED | TD_TDATTRS_PKS | TD_TDATTRS_KL;
-
         return WorkloadId.wrap(
             keccak256(
                 bytes.concat(
@@ -137,8 +127,8 @@ contract LegacyBlockBuilderPolicy is
                     registration.parsedReportBody.rtMr2,
                     registration.parsedReportBody.rtMr3,
                     registration.parsedReportBody.mrConfigId,
-                    registration.parsedReportBody.xFAM ^ expectedXfamBits,
-                    registration.parsedReportBody.tdAttributes & ~ignoredTdAttributesBitmask
+                    registration.parsedReportBody.xFAM,
+                    registration.parsedReportBody.tdAttributes
                 )
             )
         );

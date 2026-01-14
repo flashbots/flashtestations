@@ -66,19 +66,9 @@ library TD15ReportParser {
 contract TDXTD15WorkloadDeriver is IWorkloadDeriver {
     using BytesUtils for bytes;
 
-    // Same constants as the current TDX deriver.
-    bytes8 internal constant TD_XFAM_FPU = 0x0000000000000001;
-    bytes8 internal constant TD_XFAM_SSE = 0x0000000000000002;
-    bytes8 internal constant TD_TDATTRS_VE_DISABLED = 0x0000000010000000;
-    bytes8 internal constant TD_TDATTRS_PKS = 0x0000000040000000;
-    bytes8 internal constant TD_TDATTRS_KL = 0x0000000080000000;
-
     error InvalidTD15ReportLength(uint256 length);
 
     function workloadIdForReportBody(TD15ReportBody memory reportBody) public pure returns (WorkloadId) {
-        bytes8 expectedXfamBits = TD_XFAM_FPU | TD_XFAM_SSE;
-        bytes8 ignoredTdAttributesBitmask = TD_TDATTRS_VE_DISABLED | TD_TDATTRS_PKS | TD_TDATTRS_KL;
-
         return WorkloadId.wrap(
             keccak256(
                 bytes.concat(
@@ -89,8 +79,8 @@ contract TDXTD15WorkloadDeriver is IWorkloadDeriver {
                     reportBody.rtMr3,
                     // VMM configuration
                     reportBody.mrConfigId,
-                    reportBody.xFAM ^ expectedXfamBits,
-                    reportBody.tdAttributes & ~ignoredTdAttributesBitmask,
+                    reportBody.xFAM,
+                    reportBody.tdAttributes,
                     // TD15 extensions
                     bytes16(reportBody.teeTcbSvn2),
                     reportBody.mrServiceTd
