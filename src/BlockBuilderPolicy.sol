@@ -51,7 +51,8 @@ contract BlockBuilderPolicy is
     /// @dev Maps teeAddress to cached workload information for gas optimization
     mapping(address teeAddress => CachedWorkload) private cachedWorkloads;
 
-    /// @notice Workload deriver used by the shared base policy logic (Option B).
+    /// @notice Workload deriver used by the shared base policy logic.
+    /// @dev Composition pattern allows swapping derivation implementations without modifying base policy logic.
     IWorkloadDeriver public workloadDeriver;
 
     /// @notice Emitted when the workload deriver is set or updated.
