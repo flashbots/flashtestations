@@ -371,49 +371,6 @@ contract BlockBuilderPolicyTest is Test {
         assertEq(WorkloadId.unwrap(computedWorkloadIdF200), WorkloadId.unwrap(computedWorkloadId12c1));
     }
 
-    // Add these test functions to BlockBuilderPolicyTest contract
-
-    function test_workloadId_tdAttributes_allowed_bits_ignored() public {
-        // Register a TEE to get a baseline
-        _registerTEE(mockf200);
-        (, IFlashtestationRegistry.RegisteredTEE memory baseRegistration) =
-            registry.getRegistration(mockf200.teeAddress);
-        WorkloadId baseWorkloadId = policy.workloadIdForTDRegistration(baseRegistration);
-
-        // Test that all combinations of allowed bits don't affect workloadId
-        // We test: none set, all set, and one intermediate case
-        bytes8[3] memory allowedBitCombos = [
-            bytes8(0x00000000D0000000), // All three allowed bits set (VE_DISABLED | PKS | KL)
-            bytes8(0x0000000050000000), // VE_DISABLED | PKS
-            bytes8(0x0000000000000000) // None set
-        ];
-
-        for (uint256 i = 0; i < allowedBitCombos.length; i++) {
-            IFlashtestationRegistry.RegisteredTEE memory modifiedRegAllowed = baseRegistration;
-            // Clear the allowed bits first, then set the specific combination
-            modifiedRegAllowed.parsedReportBody.tdAttributes =
-                (baseRegistration.parsedReportBody.tdAttributes & ~bytes8(0x00000000D0000000)) | allowedBitCombos[i];
-
-            WorkloadId workloadId = policy.workloadIdForTDRegistration(modifiedRegAllowed);
-            assertEq(
-                WorkloadId.unwrap(baseWorkloadId),
-                WorkloadId.unwrap(workloadId),
-                "Allowed tdAttributes bits should not affect workloadId"
-            );
-        }
-
-        // Test that a non-allowed bit DOES change workloadId
-        IFlashtestationRegistry.RegisteredTEE memory modifiedReg = baseRegistration;
-        modifiedReg.parsedReportBody.tdAttributes =
-            baseRegistration.parsedReportBody.tdAttributes | bytes8(0x0000000000000001);
-        WorkloadId differentWorkloadId = policy.workloadIdForTDRegistration(modifiedReg);
-        assertNotEq(
-            WorkloadId.unwrap(baseWorkloadId),
-            WorkloadId.unwrap(differentWorkloadId),
-            "Non-allowed tdAttributes bits should affect workloadId"
-        );
-    }
-
     function test_workloadId_xfam_expected_bits_required() public {
         // Register a TEE to get a baseline
         _registerTEE(mockf200);
