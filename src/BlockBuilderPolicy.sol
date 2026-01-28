@@ -77,8 +77,7 @@ contract BlockBuilderPolicy is
     }
 
     function _setWorkloadDeriver(address deriver) internal {
-        require(deriver != address(0), "InvalidWorkloadDeriver");
-        require(deriver.code.length > 0, "InvalidWorkloadDeriver");
+        require(deriver != address(0) && deriver.code.length > 0, InvalidWorkloadDeriver());
 
         // Guard: this policy's `isAllowedPolicy` override assumes the configured deriver supports
         // `workloadIdForReportBody(TD10ReportBody)` (to avoid re-parsing raw quotes).
@@ -87,7 +86,7 @@ contract BlockBuilderPolicy is
         TD10ReportBody memory empty;
         (bool ok, bytes memory ret) =
             deriver.staticcall(abi.encodeCall(TDXWorkloadDeriver.workloadIdForReportBody, (empty)));
-        require(ok && ret.length == 32, "DeriverMissingWorkloadIdForReportBody");
+        require(ok && ret.length == 32, DeriverMissingWorkloadIdForReportBody());
 
         workloadDeriver = IWorkloadDeriver(deriver);
         emit WorkloadDeriverSet(deriver);

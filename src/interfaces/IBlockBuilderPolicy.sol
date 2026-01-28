@@ -31,6 +31,10 @@ interface IBlockBuilderPolicy is IBasePolicy {
     error UnauthorizedBlockBuilder(address caller);
     /// @notice Emitted when the nonce is invalid
     error InvalidNonce(uint256 expected, uint256 provided);
+    /// @notice Emitted when the workload deriver address is invalid (zero address or no code)
+    error InvalidWorkloadDeriver();
+    /// @notice Emitted when the workload deriver is missing the required workloadIdForReportBody method
+    error DeriverMissingWorkloadIdForReportBody();
 
     // ============ Functions ============
 
