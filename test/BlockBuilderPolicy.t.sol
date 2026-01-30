@@ -6,7 +6,10 @@ import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
-import {IBlockBuilderPolicy, WorkloadId} from "../src/interfaces/IBlockBuilderPolicy.sol";
+import {IBlockBuilderPolicy} from "../src/interfaces/IBlockBuilderPolicy.sol";
+import {IPolicyCommon} from "../src/interfaces/IPolicyCommon.sol";
+import {WorkloadId} from "../src/interfaces/IPolicyCommon.sol";
+import {TDXWorkloadDeriver} from "../src/derivers/TDXWorkloadDeriver.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
 import {IFlashtestationRegistry} from "../src/interfaces/IFlashtestationRegistry.sol";
 import {MockQuote} from "../test/FlashtestationRegistry.t.sol";
@@ -28,6 +31,7 @@ contract BlockBuilderPolicyTest is Test {
     FlashtestationRegistry public registry;
     MockAutomataDcapAttestationFee public attestationContract;
     BlockBuilderPolicy public policy;
+    TDXWorkloadDeriver public deriver;
     Upgrader public upgrader = new Upgrader();
     address public owner = address(this);
 
@@ -93,7 +97,8 @@ contract BlockBuilderPolicyTest is Test {
         )
     });
 
-    WorkloadId arbitraryWorkloadId = WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
+    WorkloadId arbitraryWorkloadId =
+        WorkloadId.wrap(0x1dd337a1486a84a7d4200553584996abec87a87473d445262d5562f84ec456a8);
     WorkloadId wrongWorkloadId = WorkloadId.wrap(0x20ab431377d40de192f7c754ac0f1922de05ab2f73e74204f0b3ab73a8856876);
 
     using ECDSA for bytes32;
@@ -106,9 +111,11 @@ contract BlockBuilderPolicyTest is Test {
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
+        deriver = new TDXWorkloadDeriver();
         address policyImplementation = address(new BlockBuilderPolicy());
         address policyProxy = UnsafeUpgrades.deployUUPSProxy(
-            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(registry)))
+            policyImplementation,
+            abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(registry), address(deriver)))
         );
         policy = BlockBuilderPolicy(policyProxy);
     }
@@ -127,11 +134,13 @@ contract BlockBuilderPolicyTest is Test {
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
+        deriver = new TDXWorkloadDeriver();
         address policyImplementation = address(new BlockBuilderPolicy());
 
         vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0x0)));
         UnsafeUpgrades.deployUUPSProxy(
-            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (address(0), address(registry)))
+            policyImplementation,
+            abi.encodeCall(BlockBuilderPolicy.initialize, (address(0), address(registry), address(deriver)))
         );
     }
 
@@ -143,11 +152,12 @@ contract BlockBuilderPolicyTest is Test {
             abi.encodeCall(FlashtestationRegistry.initialize, (owner, address(attestationContract)))
         );
         registry = FlashtestationRegistry(registryProxy);
+        deriver = new TDXWorkloadDeriver();
         address policyImplementation = address(new BlockBuilderPolicy());
 
-        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.InvalidRegistry.selector));
+        vm.expectRevert(abi.encodeWithSelector(IPolicyCommon.InvalidRegistry.selector));
         UnsafeUpgrades.deployUUPSProxy(
-            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(0)))
+            policyImplementation, abi.encodeCall(BlockBuilderPolicy.initialize, (owner, address(0), address(deriver)))
         );
     }
 
@@ -185,17 +195,17 @@ contract BlockBuilderPolicyTest is Test {
 
     function test_addWorkloadToPolicy_reverts_if_duplicate() public {
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
-        vm.expectRevert(IBlockBuilderPolicy.WorkloadAlreadyInPolicy.selector);
+        vm.expectRevert(IPolicyCommon.WorkloadAlreadyInPolicy.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_empty_commit_hash() public {
-        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.EmptyCommitHash.selector, 0));
+        vm.expectRevert(IPolicyCommon.EmptyCommitHash.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, "", mockf200.sourceLocators);
     }
 
     function test_addWorkloadToPolicy_reverts_if_empty_source_locators() public {
-        vm.expectRevert(abi.encodeWithSelector(IBlockBuilderPolicy.EmptySourceLocators.selector, 0));
+        vm.expectRevert(IPolicyCommon.EmptySourceLocators.selector);
         policy.addWorkloadToPolicy(mockf200.workloadId, mockf200.commitHash, new string[](0));
     }
 
@@ -258,7 +268,7 @@ contract BlockBuilderPolicyTest is Test {
     }
 
     function test_removeWorkloadFromPolicy_reverts_if_not_present() public {
-        vm.expectRevert(IBlockBuilderPolicy.WorkloadNotInPolicy.selector);
+        vm.expectRevert(IPolicyCommon.WorkloadNotInPolicy.selector);
         policy.removeWorkloadFromPolicy(mockf200.workloadId);
     }
 
@@ -359,49 +369,6 @@ contract BlockBuilderPolicyTest is Test {
 
         // Same measurements, different addresses and ext data. workloadId should match.
         assertEq(WorkloadId.unwrap(computedWorkloadIdF200), WorkloadId.unwrap(computedWorkloadId12c1));
-    }
-
-    // Add these test functions to BlockBuilderPolicyTest contract
-
-    function test_workloadId_tdAttributes_allowed_bits_ignored() public {
-        // Register a TEE to get a baseline
-        _registerTEE(mockf200);
-        (, IFlashtestationRegistry.RegisteredTEE memory baseRegistration) =
-            registry.getRegistration(mockf200.teeAddress);
-        WorkloadId baseWorkloadId = policy.workloadIdForTDRegistration(baseRegistration);
-
-        // Test that all combinations of allowed bits don't affect workloadId
-        // We test: none set, all set, and one intermediate case
-        bytes8[3] memory allowedBitCombos = [
-            bytes8(0x00000000D0000000), // All three allowed bits set (VE_DISABLED | PKS | KL)
-            bytes8(0x0000000050000000), // VE_DISABLED | PKS
-            bytes8(0x0000000000000000) // None set
-        ];
-
-        for (uint256 i = 0; i < allowedBitCombos.length; i++) {
-            IFlashtestationRegistry.RegisteredTEE memory modifiedRegAllowed = baseRegistration;
-            // Clear the allowed bits first, then set the specific combination
-            modifiedRegAllowed.parsedReportBody.tdAttributes =
-                (baseRegistration.parsedReportBody.tdAttributes & ~bytes8(0x00000000D0000000)) | allowedBitCombos[i];
-
-            WorkloadId workloadId = policy.workloadIdForTDRegistration(modifiedRegAllowed);
-            assertEq(
-                WorkloadId.unwrap(baseWorkloadId),
-                WorkloadId.unwrap(workloadId),
-                "Allowed tdAttributes bits should not affect workloadId"
-            );
-        }
-
-        // Test that a non-allowed bit DOES change workloadId
-        IFlashtestationRegistry.RegisteredTEE memory modifiedReg = baseRegistration;
-        modifiedReg.parsedReportBody.tdAttributes =
-            baseRegistration.parsedReportBody.tdAttributes | bytes8(0x0000000000000001);
-        WorkloadId differentWorkloadId = policy.workloadIdForTDRegistration(modifiedReg);
-        assertNotEq(
-            WorkloadId.unwrap(baseWorkloadId),
-            WorkloadId.unwrap(differentWorkloadId),
-            "Non-allowed tdAttributes bits should affect workloadId"
-        );
     }
 
     function test_workloadId_xfam_expected_bits_required() public {

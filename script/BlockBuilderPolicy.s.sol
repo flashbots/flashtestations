@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {BlockBuilderPolicy} from "../src/BlockBuilderPolicy.sol";
 import {FlashtestationRegistry} from "../src/FlashtestationRegistry.sol";
+import {TDXWorkloadDeriver} from "../src/derivers/TDXWorkloadDeriver.sol";
 
 /// @title BlockBuilderPolicyScript
 /// @notice Deploy the block builder policy contract, which is a simple contract that allows an organization
@@ -31,8 +32,11 @@ contract BlockBuilderPolicyScript is Script {
         address owner = vm.envAddress("OWNER_BLOCK_BUILDER_POLICY");
         console.log("owner", owner);
 
+        address deriver = address(new TDXWorkloadDeriver());
+        console.log("TDXWorkloadDeriver deployed at:", deriver);
+
         address policy = Upgrades.deployUUPSProxy(
-            "BlockBuilderPolicy.sol", abi.encodeCall(BlockBuilderPolicy.initialize, (owner, registry))
+            "BlockBuilderPolicy.sol", abi.encodeCall(BlockBuilderPolicy.initialize, (owner, registry, deriver))
         );
         console.log("BlockBuilderPolicy deployed at:", policy);
         vm.stopBroadcast();
